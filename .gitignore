@@ -1,0 +1,110 @@
+# ===========================
+# AI Interview & Presentation Coach
+# Production .gitignore
+# ===========================
+
+# ===========================
+# Frontend (React + Vite)
+# ===========================
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# ===========================
+# Backend (Python + FastAPI)
+# ===========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+*.egg-info/
+*.egg
+
+# ===========================
+# Environment & Secrets
+# ===========================
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# ===========================
+# IDE & Editor Files
+# ===========================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ===========================
+# OS Files
+# ===========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ===========================
+# Logs
+# ===========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===========================
+# Test Coverage
+# ===========================
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+
+# ===========================
+# Temporary & Upload Files
+# ===========================
+tmp/
+temp/
+uploads/
+*.tmp
+*.bak
+
+# ===========================
+# Package Manager Locks (optional - uncomment if not needed)
+# ===========================
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ===========================
+# Supabase Local Dev
+# ===========================
+.supabase/
+
+# ===========================
+# Do NOT ignore
+# ===========================
+!.kiro/
+!.kiro/specs/
+!requirements.md
+!design.md
+!tasks.md
+!README.md
