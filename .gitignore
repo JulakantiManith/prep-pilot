@@ -29,6 +29,11 @@ env/
 *.egg
 
 # ===========================
+# Python Version Managers
+# ===========================
+.python-version
+
+# ===========================
 # Environment & Secrets
 # ===========================
 .env
@@ -44,7 +49,7 @@ frontend/.env
 # ===========================
 # IDE & Editor Files
 # ===========================
-.vscode/
+.vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
@@ -56,9 +61,16 @@ frontend/.env
 # OS Files
 # ===========================
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
 Desktop.ini
 ehthumbs.db
+
+# ===========================
+# Windows
+# ===========================
+$RECYCLE.BIN/
 
 # ===========================
 # Logs
