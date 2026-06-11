@@ -2,10 +2,14 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.middleware.error_handler import register_exception_handlers
 from app.config import get_settings
+
+# API version prefix used by all backend endpoints
+API_V1_PREFIX = "/api/v1"
 
 
 @asynccontextmanager
@@ -24,8 +28,9 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=settings.app_version,
         lifespan=lifespan,
-        docs_url="/api/docs",
-        openapi_url="/api/openapi.json",
+        docs_url=f"{API_V1_PREFIX}/docs",
+        redoc_url=f"{API_V1_PREFIX}/redoc",
+        openapi_url=f"{API_V1_PREFIX}/openapi.json",
     )
 
     # CORS middleware
@@ -37,14 +42,23 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Register global exception handlers
+    register_exception_handlers(app)
+
+    # Core router with API v1 prefix
+    v1_router = APIRouter(prefix=API_V1_PREFIX)
+
     # Health check endpoint
-    @app.get("/api/health", tags=["Health"])
+    @v1_router.get("/health", tags=["Health"])
     async def health_check():
         """Health check endpoint."""
         return {
             "status": "healthy",
             "version": settings.app_version,
         }
+
+    # Include the versioned router
+    app.include_router(v1_router)
 
     return app
 

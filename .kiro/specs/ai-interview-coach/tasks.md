@@ -6,7 +6,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
 
 ## Tasks
 
-- [ ] 1. Project scaffolding and shared infrastructure
+- [x] 1. Project scaffolding and shared infrastructure
   - [x] 1.1 Initialize frontend project with Vite, React, TypeScript, Tailwind CSS, and install dependencies (React Router DOM, TanStack Query, React Hook Form, Zod, Recharts, Axios, shadcn/ui)
     - Create `frontend/` directory with Vite React-TS template
     - Configure `tsconfig.json` with `strict: true`
@@ -47,14 +47,14 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Default to OS preferred color scheme for first-time visitors
     - _Requirements: 15.2, 15.3, 15.4_
 
-  - [ ] 1.6 Set up backend middleware (error handler, auth middleware, CORS)
+  - [x] 1.6 Set up backend middleware (error handler, auth middleware, CORS)
     - Create `app/api/middleware/error_handler.py` with global exception handler returning structured `ErrorResponse`
     - Create `app/api/middleware/auth_middleware.py` for JWT verification via Supabase
     - Configure CORS for frontend origin
     - Define `ErrorResponse` and `FieldError` Pydantic models in `app/api/schemas/common_schemas.py`
     - _Requirements: 17.2, 17.5_
 
-  - [ ] 1.7 Create database models and Supabase integration client
+  - [x] 1.7 Create database models and Supabase integration client
     - Create `app/integrations/supabase_client.py` with Supabase client initialization
     - Create `app/models/user.py`, `app/models/session.py`, `app/models/answer.py`, `app/models/feedback.py`, `app/models/analytics.py`
     - Define Pydantic models matching database schema (SessionType, InterviewType, Difficulty, SessionStatus enums)
