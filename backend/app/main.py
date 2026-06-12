@@ -6,6 +6,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.error_handler import register_exception_handlers
+from app.api.routes.auth import router as auth_router
 from app.config import get_settings
 
 # API version prefix used by all backend endpoints
@@ -56,6 +57,9 @@ def create_app() -> FastAPI:
             "status": "healthy",
             "version": settings.app_version,
         }
+
+    # Include feature routers
+    v1_router.include_router(auth_router)
 
     # Include the versioned router
     app.include_router(v1_router)

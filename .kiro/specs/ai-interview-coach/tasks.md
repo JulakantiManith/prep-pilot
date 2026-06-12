@@ -61,7 +61,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - _Requirements: 16.1, 16.4_
 
 - [ ] 2. Authentication feature (Phase 1)
-  - [ ] 2.1 Implement backend auth routes and service
+  - [x] 2.1 Implement backend auth routes and service
     - Create `app/api/routes/auth.py` with POST endpoints: `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/logout`, `/api/v1/auth/forgot-password`, `/api/v1/auth/reset-password`
     - Create `app/services/auth_service.py` wrapping Supabase Auth methods
     - Create `app/api/schemas/auth_schemas.py` with Zod-equivalent Pydantic validation (email format, password strength, required fields)
