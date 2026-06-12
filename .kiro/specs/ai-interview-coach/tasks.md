@@ -94,7 +94,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Ensure both ProtectedRoute and PublicOnlyRoute use `replace: true` in Navigate for back-button protection
     - _Requirements: 21.1, 21.2, 21.3, 21.4, 21.5, 21.6, 21.7_
 
-- [ ] 3. Profile management feature (Phase 1)
+- [x] 3. Profile management feature (Phase 1)
   - [x] 3.1 Implement backend profile routes and service
     - Create `app/api/routes/profile.py` with GET/PUT `/api/v1/profile` and POST/GET `/api/v1/profile/resume`
     - Create `app/services/profile_service.py` with profile CRUD and file upload to Supabase Storage
@@ -103,7 +103,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Restrict file access to owning user
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 16.2_
 
-  - [ ] 3.2 Implement frontend profile feature (profile page, resume upload)
+  - [x] 3.2 Implement frontend profile feature (profile page, resume upload)
     - Create `src/features/profile/services/profileService.ts`
     - Create `src/features/profile/hooks/useProfile.ts`
     - Create `src/features/profile/components/ProfileForm.tsx` (target role, experience level, skills)
@@ -117,7 +117,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - **Property 14: File size validation enforcement** — reject >10MB, accept ≤10MB
     - **Validates: Requirements 2.1, 2.3**
 
-- [ ] 4. Checkpoint - Ensure all tests pass
+- [x] 4. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 5. Interview sessions feature (Phase 1)

@@ -6,6 +6,7 @@ import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { RegisterPage } from "@/features/auth/pages/RegisterPage";
 import { ForgotPasswordPage } from "@/features/auth/pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
+import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 
 // Placeholder pages — will be replaced by feature modules
 function DashboardPage() {
@@ -26,10 +27,6 @@ function AnalyticsPage() {
 
 function HistoryPage() {
   return <div className="space-y-4"><h1 className="text-2xl font-bold">Session History</h1><p className="text-muted-foreground">Review your past sessions.</p></div>;
-}
-
-function ProfilePage() {
-  return <div className="space-y-4"><h1 className="text-2xl font-bold">Profile</h1><p className="text-muted-foreground">Manage your profile and preferences.</p></div>;
 }
 
 function LandingPage() {

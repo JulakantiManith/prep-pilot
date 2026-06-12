@@ -28,23 +28,31 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
+      // Only retry once to avoid infinite loops
+      const originalRequest = error.config;
+      if (!originalRequest || (originalRequest as Record<string, unknown>)._retry) {
+        return Promise.reject(error);
+      }
+      (originalRequest as Record<string, unknown>)._retry = true;
+
       // Attempt token refresh
       const { error: refreshError } = await supabase.auth.refreshSession();
 
       if (refreshError) {
-        // Refresh failed — redirect to login
-        window.location.href = "/login";
-      } else if (error.config) {
-        // Retry the original request with new token
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-
-        if (token && error.config.headers) {
-          error.config.headers.Authorization = `Bearer ${token}`;
-        }
-
-        return apiClient(error.config);
+        // Refresh failed — sign out and let the auth context handle redirect
+        await supabase.auth.signOut();
+        return Promise.reject(error);
       }
+
+      // Retry the original request with new token
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+
+      if (token && originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+      }
+
+      return apiClient(originalRequest);
     }
 
     return Promise.reject(error);

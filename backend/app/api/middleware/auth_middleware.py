@@ -4,44 +4,11 @@ import logging
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
-from jose import JWTError, jwt
 
 from app.config import Settings, get_settings
+from app.integrations.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
-
-# Supabase uses HS256 for JWT signing
-ALGORITHM = "HS256"
-
-
-def _decode_token(token: str, settings: Settings) -> dict:
-    """Decode and verify a JWT token using the configured secret.
-
-    Args:
-        token: The raw JWT token string.
-        settings: Application settings containing the JWT secret.
-
-    Returns:
-        The decoded token payload as a dictionary.
-
-    Raises:
-        HTTPException: If the token is invalid, expired, or cannot be decoded.
-    """
-    try:
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret,
-            algorithms=[ALGORITHM],
-            options={"verify_aud": False},
-        )
-        return payload
-    except JWTError as e:
-        logger.warning("JWT verification failed: %s", str(e))
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from e
 
 
 async def get_current_user_id(
@@ -50,8 +17,8 @@ async def get_current_user_id(
 ) -> str:
     """Extract and validate user ID from JWT authorization header.
 
-    Verifies the JWT token via Supabase's JWT secret and extracts
-    the 'sub' claim as the authenticated user's ID.
+    Uses the Supabase client to verify the token, which handles
+    all algorithm types (HS256, ES256, RS256) automatically.
 
     Args:
         authorization: The Authorization header value (Bearer <token>).
@@ -78,14 +45,26 @@ async def get_current_user_id(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = _decode_token(token, settings)
+    try:
+        client = get_supabase_client()
+        # Use Supabase's built-in token verification
+        user_response = client.auth.get_user(token)
 
-    user_id = payload.get("sub")
-    if not user_id:
+        if not user_response or not user_response.user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        return user_response.user.id
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("JWT verification failed: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token does not contain a valid user identifier",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return user_id
+        ) from e

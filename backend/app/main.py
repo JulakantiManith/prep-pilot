@@ -18,6 +18,14 @@ API_V1_PREFIX = "/api/v1"
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup and shutdown events."""
     # Startup
+    import logging
+    logger = logging.getLogger(__name__)
+    settings = get_settings()
+    logger.info(
+        "JWT_SECRET loaded: length=%d, starts_with='%s'",
+        len(settings.jwt_secret),
+        settings.jwt_secret[:4] if settings.jwt_secret else "EMPTY",
+    )
     yield
     # Shutdown
 
