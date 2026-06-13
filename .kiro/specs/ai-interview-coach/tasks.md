@@ -152,7 +152,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Return `SpeechMetrics` with all required fields
     - _Requirements: 4.4, 8.1, 8.2, 8.3, 8.4, 8.5_
 
-  - [ ] 5.4 Implement backend confidence analyzer
+  - [x] 5.4 Implement backend confidence analyzer
     - Create `app/services/confidence_analyzer.py` with `analyze(transcript, hesitation_count, pause_frequency, speech_flow_score, response_completeness)` method
     - Compute confidence score (0-100) based on hesitation, pause frequency, speech flow, completeness
     - Ensure deterministic output for identical inputs
