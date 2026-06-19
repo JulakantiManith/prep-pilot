@@ -9,11 +9,7 @@ import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { InterviewSetupPage } from "@/features/interview/pages/InterviewSetupPage";
 import { InterviewSessionPage } from "@/features/interview/pages/InterviewSessionPage";
-
-// Placeholder pages — will be replaced by feature modules
-function DashboardPage() {
-  return <div className="space-y-4"><h1 className="text-2xl font-bold">Dashboard</h1><p className="text-muted-foreground">Your practice overview will appear here.</p></div>;
-}
+import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 
 function PresentationPage() {
   return <div className="space-y-4"><h1 className="text-2xl font-bold">Presentation Practice</h1><p className="text-muted-foreground">Practice your presentation skills.</p></div>;

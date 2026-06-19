@@ -7,6 +7,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.error_handler import register_exception_handlers
+from app.api.routes.analytics import router as analytics_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.interview import router as interview_router
 from app.api.routes.profile import router as profile_router
@@ -100,6 +101,7 @@ def create_app() -> FastAPI:
         }
 
     # Include feature routers
+    v1_router.include_router(analytics_router)
     v1_router.include_router(auth_router)
     v1_router.include_router(interview_router)
     v1_router.include_router(profile_router)
