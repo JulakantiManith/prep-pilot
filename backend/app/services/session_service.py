@@ -23,6 +23,7 @@ from app.services.question_generator import QuestionGenerator
 from app.services.transcription_service import TranscriptionService, TranscriptionError
 from app.services.ai_feedback_service import AIFeedbackService, SessionData, AnswerData
 from app.services.speech_analysis_service import SpeechAnalysisService
+from app.services.relevance_scorer import RelevanceScorer
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ class SessionService:
         transcription_service: Optional[TranscriptionService] = None,
         feedback_service: Optional[AIFeedbackService] = None,
         speech_analysis_service: Optional[SpeechAnalysisService] = None,
+        relevance_scorer: Optional[RelevanceScorer] = None,
     ) -> None:
         """Initialize the session service with its dependencies.
 
@@ -64,12 +66,14 @@ class SessionService:
             transcription_service: Transcription service instance. Creates default if None.
             feedback_service: AI feedback service instance. Creates default if None.
             speech_analysis_service: Speech analysis service. Creates default if None.
+            relevance_scorer: Relevance scoring service. Creates default if None.
         """
         self._repository = repository or SessionRepository()
         self._question_generator = question_generator or QuestionGenerator()
         self._transcription = transcription_service or TranscriptionService()
         self._feedback_service = feedback_service or AIFeedbackService()
         self._speech_analysis = speech_analysis_service or SpeechAnalysisService()
+        self._relevance_scorer = relevance_scorer or RelevanceScorer()
 
     async def create_session(
         self,
@@ -255,17 +259,43 @@ class SessionService:
         )
         detected_hesitations = hesitation_analysis.hesitation_count
 
-        if transcript and len(transcript.strip()) > 0:
+        # Also count filler words from word timestamps (Whisper sometimes
+        # preserves fillers in word-level data even when the main .text is clean)
+        filler_words_from_timestamps = self._transcription.count_filler_words_in_timestamps(
+            transcription_result.words
+        )
+
+        # Check if transcript has meaningful content (not hallucinated filler from silence)
+        raw_transcript = transcript  # Preserve the original STT output exactly as-is
+        has_meaningful_content = self._transcription.is_meaningful_transcript(transcript)
+
+        if not has_meaningful_content:
+            # Log that this is a silent/filler-only response, but keep raw transcript
+            logger.info(
+                "No meaningful speech detected for session=%s, question=%d. "
+                "Raw transcript: '%s' (stored as-is, flagged as insufficient)",
+                session_id,
+                question_index,
+                raw_transcript.strip() if raw_transcript else "",
+            )
+
+        if has_meaningful_content:
             try:
                 speech_metrics = self._speech_analysis.analyze(transcript, actual_duration)
-                # Override filler count with hesitation-detected count (more accurate)
-                # The transcript doesn't contain fillers, but timing gaps reveal them
-                if detected_hesitations > speech_metrics.filler_word_count:
-                    speech_metrics.filler_word_count = detected_hesitations
-                    # Recalculate communication score:
-                    # Penalize based on filler/hesitation ratio
+                # Override filler count with the HIGHEST of:
+                # 1. Text-detected fillers (from transcript)
+                # 2. Timing-gap hesitations (from word timestamp gaps)
+                # 3. Filler words in word timestamps (Whisper word-level data)
+                effective_filler_count = max(
+                    speech_metrics.filler_word_count,
+                    detected_hesitations,
+                    filler_words_from_timestamps,
+                )
+                if effective_filler_count > speech_metrics.filler_word_count:
+                    speech_metrics.filler_word_count = effective_filler_count
+                    # Recalculate communication score with updated filler count
                     total_words = max(speech_metrics.total_words, 1)
-                    filler_ratio = detected_hesitations / total_words
+                    filler_ratio = effective_filler_count / total_words
                     # Reduce communication score proportionally
                     filler_penalty = int(filler_ratio * 100 * 1.5)  # 1.5x weight
                     speech_metrics.communication_score = max(
@@ -327,11 +357,14 @@ class SessionService:
                     logger.warning("Confidence analysis failed (non-fatal): %s", str(e))
 
         # Step 5: Create answer record with analysis results
+        # Always store the raw transcript exactly as returned by the STT provider.
+        # The has_meaningful_content flag indicates whether this is a real response
+        # or likely hallucinated filler from silence.
         answer_data: dict = {
             "session_id": str(session_id),
             "question_index": question_index,
             "question_text": question_text,
-            "transcript": transcript,
+            "transcript": raw_transcript,  # Raw STT output, never modified
         }
 
         if speech_metrics:
@@ -341,9 +374,20 @@ class SessionService:
             answer_data["speaking_duration"] = speech_metrics.speaking_duration
             answer_data["avg_pause_duration"] = speech_metrics.avg_pause_duration
             answer_data["communication_score"] = speech_metrics.communication_score
+        elif not has_meaningful_content:
+            # Empty/silent response — assign minimum scores
+            answer_data["wpm"] = 0
+            answer_data["total_words"] = 0
+            answer_data["filler_word_count"] = 0
+            answer_data["speaking_duration"] = actual_duration
+            answer_data["avg_pause_duration"] = actual_duration
+            answer_data["communication_score"] = 0
 
         if confidence_result:
             answer_data["confidence_score"] = confidence_result.score
+        elif not has_meaningful_content:
+            # Empty/silent response — assign minimum confidence
+            answer_data["confidence_score"] = 0
 
         try:
             answer = self._repository.create_answer(answer_data)
@@ -352,14 +396,16 @@ class SessionService:
             raise SessionServiceError(f"Failed to save answer: {e}") from e
 
         logger.info(
-            "Answer submitted: id=%s, transcript_length=%d",
+            "Answer submitted: id=%s, transcript_length=%d, meaningful=%s",
             answer.get("id"),
-            len(transcript),
+            len(raw_transcript) if raw_transcript else 0,
+            has_meaningful_content,
         )
 
         return {
             "answer": answer,
-            "transcript": transcript,
+            "transcript": raw_transcript,
+            "is_meaningful": has_meaningful_content,
         }
 
     async def complete_session(self, user_id: str, session_id: UUID) -> dict:
@@ -435,8 +481,23 @@ class SessionService:
         except RepositoryError as e:
             raise SessionServiceError(f"Failed to retrieve answers: {e}") from e
 
-        # Step 3: Compute aggregate scores from available answer data
-        scores = self._compute_aggregate_scores(answers)
+        # Step 3: Score answer relevance via AI (batch call at completion)
+        relevance_result = None
+        try:
+            relevance_result = await self._relevance_scorer.score_session(
+                answers=answers,
+                interview_type=session.get("interview_type", "hr"),
+                role=session.get("role", ""),
+                topic=session.get("topic"),
+            )
+        except Exception as e:
+            logger.warning(
+                "Relevance scoring failed for session %s (non-fatal): %s",
+                session_id, str(e),
+            )
+
+        # Step 4: Compute aggregate scores from answers + relevance
+        scores = self._compute_aggregate_scores(answers, relevance_result)
 
         # Step 4: Update session as completed
         now = datetime.now(timezone.utc).isoformat()
@@ -512,17 +573,28 @@ class SessionService:
             "feedback": feedback_data,
         }
 
-    def _compute_aggregate_scores(self, answers: list[dict]) -> dict:
-        """Compute aggregate scores from session answers.
+    def _compute_aggregate_scores(
+        self, answers: list[dict], relevance_result=None
+    ) -> dict:
+        """Compute aggregate scores from session answers + relevance scoring.
 
-        Averages available scores across all answers. Returns None
-        for scores where no data is available yet.
+        Scoring methodology:
+        - Communication (from speech analysis): How fluently/clearly you speak
+        - Confidence (from confidence analyzer): How confidently you deliver
+        - Relevance (from AI at completion): Does the answer address the question?
+        - Accuracy (from AI, technical only): Is the content factually correct?
+
+        Overall score formula:
+        - If relevance available: 30% communication + 20% confidence + 30% relevance + 20% completeness
+        - If no relevance (AI failed): 50% communication + 50% confidence (legacy behavior)
 
         Args:
             answers: List of answer records.
+            relevance_result: Optional SessionRelevanceResult from AI scoring.
 
         Returns:
-            Dict with overall_score, confidence_score, communication_score.
+            Dict with overall_score, confidence_score, communication_score,
+            relevance_score.
         """
         if not answers:
             return {
@@ -531,16 +603,22 @@ class SessionService:
                 "communication_score": None,
             }
 
-        communication_scores = [
-            a["communication_score"]
-            for a in answers
-            if a.get("communication_score") is not None
-        ]
-        confidence_scores = [
-            a["confidence_score"]
-            for a in answers
-            if a.get("confidence_score") is not None
-        ]
+        communication_scores = []
+        confidence_scores = []
+
+        for a in answers:
+            comm = a.get("communication_score")
+            conf = a.get("confidence_score")
+
+            if comm is not None:
+                communication_scores.append(comm)
+            else:
+                communication_scores.append(0)
+
+            if conf is not None:
+                confidence_scores.append(conf)
+            else:
+                confidence_scores.append(0)
 
         avg_communication = (
             int(sum(communication_scores) / len(communication_scores))
@@ -553,15 +631,40 @@ class SessionService:
             else None
         )
 
-        # Overall score is the average of available sub-scores
-        available_scores = [
-            s for s in [avg_communication, avg_confidence] if s is not None
-        ]
-        overall_score = (
-            int(sum(available_scores) / len(available_scores))
-            if available_scores
-            else None
-        )
+        # Incorporate relevance scoring if available
+        avg_relevance = None
+        avg_completeness = None
+        if relevance_result:
+            avg_relevance = relevance_result.avg_relevance
+            avg_completeness = relevance_result.avg_completeness
+            logger.info(
+                "Relevance scores: relevance=%d, completeness=%d, accuracy=%s",
+                avg_relevance,
+                avg_completeness,
+                relevance_result.avg_accuracy,
+            )
+
+        # Compute overall score with weighted formula
+        if avg_relevance is not None and avg_completeness is not None:
+            # Full scoring: communication(30%) + confidence(20%) + relevance(30%) + completeness(20%)
+            comm_val = avg_communication if avg_communication is not None else 0
+            conf_val = avg_confidence if avg_confidence is not None else 0
+            overall_score = int(
+                comm_val * 0.30
+                + conf_val * 0.20
+                + avg_relevance * 0.30
+                + avg_completeness * 0.20
+            )
+        else:
+            # Fallback: no relevance data (AI failed)
+            available_scores = [
+                s for s in [avg_communication, avg_confidence] if s is not None
+            ]
+            overall_score = (
+                int(sum(available_scores) / len(available_scores))
+                if available_scores
+                else None
+            )
 
         return {
             "overall_score": overall_score,
@@ -594,20 +697,20 @@ class SessionService:
         combined_transcript = " ".join(transcripts)
 
         if not combined_transcript.strip():
-            # No transcripts available — return minimal algorithmic feedback
+            # No transcripts available — return critical feedback reflecting poor performance
             return {
                 "strengths": [
-                    "Completed all questions in the session",
-                    "Showed commitment by finishing the interview",
+                    "Attempted all questions in the session",
+                    "Completed the interview session",
                 ],
                 "weaknesses": [
-                    "Responses were too brief to analyze in detail",
-                    "Consider providing more detailed answers",
+                    "No substantive verbal responses were provided",
+                    "Responses consisted of silence or minimal utterances without meaningful content",
                 ],
                 "recommendations": [
-                    "Practice giving more detailed verbal responses",
-                    "Try to speak for at least 30-60 seconds per question",
-                    "Structure your answers with clear beginning, middle, and end",
+                    "Practice formulating complete verbal responses to interview questions before recording",
+                    "Aim to speak for at least 30-60 seconds per question with structured answers",
+                    "Prepare key talking points in advance and practice delivering them aloud",
                 ],
             }
 

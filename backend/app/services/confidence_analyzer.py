@@ -30,6 +30,10 @@ _QUALITY_BONUS = 10
 # that are slower but substantive. Previously 2.5 was too aggressive.
 _EXPECTED_WORDS_PER_SECOND = 1.5
 
+# Minimum content thresholds for confidence scoring
+_MIN_WORDS_CONFIDENCE = 5  # Below this, response is essentially empty
+_MIN_WORDS_SUBSTANTIVE_CONFIDENCE = 15  # Below this, response is too short for high scores
+
 
 class ConfidenceAnalyzer:
     """Analyzes speech patterns to produce a confidence score.
@@ -59,9 +63,43 @@ class ConfidenceAnalyzer:
         Returns:
             ConfidenceResult containing the confidence score and input metrics.
         """
+        # Check for minimum content threshold
+        words = transcript.strip().split() if transcript else []
+        total_words = len(words)
+
+        # Safeguard: empty or near-empty responses get very low confidence
+        if total_words < _MIN_WORDS_CONFIDENCE:
+            # 0-4 words: essentially silence or minimal utterance
+            score = min(5, total_words * 1)
+            return ConfidenceResult(
+                score=score,
+                hesitation_count=hesitation_count,
+                pause_frequency=pause_frequency,
+                speech_flow_score=speech_flow_score,
+                response_completeness=response_completeness,
+            )
+
+        # Safeguard: filler-only responses
+        filler_words_set = {"um", "uh", "like", "actually", "basically", "so", "you", "know"}
+        non_filler_count = sum(1 for w in words if w.lower() not in filler_words_set)
+        if non_filler_count < _MIN_WORDS_CONFIDENCE:
+            # Almost entirely filler — very low confidence
+            score = min(10, non_filler_count * 2)
+            return ConfidenceResult(
+                score=score,
+                hesitation_count=hesitation_count,
+                pause_frequency=pause_frequency,
+                speech_flow_score=speech_flow_score,
+                response_completeness=response_completeness,
+            )
+
         score = self._compute_confidence_score(
             hesitation_count, pause_frequency, speech_flow_score, response_completeness
         )
+
+        # Safeguard: one-word or very short substantive answers are capped
+        if total_words < _MIN_WORDS_SUBSTANTIVE_CONFIDENCE:
+            score = min(score, 25)
 
         return ConfidenceResult(
             score=score,

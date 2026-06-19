@@ -9,6 +9,7 @@ import { ResetPasswordPage } from "@/features/auth/pages/ResetPasswordPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { InterviewSetupPage } from "@/features/interview/pages/InterviewSetupPage";
 import { InterviewSessionPage } from "@/features/interview/pages/InterviewSessionPage";
+import { ResumeInterviewPage } from "@/features/interview/pages/ResumeInterviewPage";
 import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 import { AnalyticsPage } from "@/features/analytics/pages/AnalyticsPage";
 import { HistoryPage } from "@/features/history/pages/HistoryPage";
@@ -42,6 +43,7 @@ export function AppRoutes() {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/interview" element={<InterviewSetupPage />} />
+          <Route path="/interview/resume" element={<ResumeInterviewPage />} />
           <Route path="/interview/session/:sessionId" element={<InterviewSessionPage />} />
           <Route path="/presentation" element={<PresentationPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />

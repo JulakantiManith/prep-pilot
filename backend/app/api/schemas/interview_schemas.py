@@ -106,7 +106,17 @@ class SubmitAnswerResponse(BaseModel):
     """Response for answer submission endpoint."""
 
     answer: AnswerResponse
-    transcript: str
+    transcript: str = Field(
+        description="Raw transcript exactly as returned by the speech-to-text provider"
+    )
+    is_meaningful: bool = Field(
+        default=True,
+        description=(
+            "Whether the transcript contains meaningful speech content. "
+            "False indicates the audio was silent or contained only filler words "
+            "(likely STT hallucination from silence/noise)."
+        ),
+    )
 
 
 class ScoreSummary(BaseModel):

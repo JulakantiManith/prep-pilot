@@ -9,7 +9,9 @@ export const interviewSetupSchema = z.object({
     .min(1, "Role is required")
     .max(100, "Role must be at most 100 characters"),
   topic: z.string().optional(),
-  difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+  difficulty: z.enum(["beginner", "intermediate", "advanced"], {
+    message: "Please select a difficulty level",
+  }),
   numQuestions: z
     .number()
     .min(1, "Must have at least 1 question")

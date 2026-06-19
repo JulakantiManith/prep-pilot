@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # AI Services
     gemini_api_key: str = ""
     groq_api_key: str = ""
+    openrouter_api_key: str = ""
 
     # Database
     database_url: str = ""

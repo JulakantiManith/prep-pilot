@@ -11,7 +11,7 @@ import re
 from app.models.answer import SpeechMetrics
 
 # Filler words to detect in transcripts
-_SINGLE_FILLER_WORDS = {"um", "uh", "like", "actually", "basically"}
+_SINGLE_FILLER_WORDS = {"um", "uh", "like", "actually", "basically", "so"}
 _MULTI_FILLER_PHRASES = ["you know"]
 
 # Ideal WPM range for communication scoring
@@ -20,6 +20,10 @@ _WPM_IDEAL_HIGH = 160
 
 # Average speaking rate used for pause estimation (words per second)
 _AVG_SPEAKING_RATE_WPS = 2.5
+
+# Minimum content thresholds for meaningful analysis
+_MIN_WORDS_FOR_VALID_RESPONSE = 5
+_MIN_WORDS_FOR_SUBSTANTIVE_RESPONSE = 15
 
 
 class SpeechAnalysisService:
@@ -46,7 +50,7 @@ class SpeechAnalysisService:
         total_words = len(words)
 
         # WPM calculation (Requirement 8.1)
-        wpm = round(total_words / (duration_seconds / 60))
+        wpm = round(total_words / (duration_seconds / 60)) if duration_seconds > 0 else 0
 
         # Filler word detection (Requirement 8.2)
         filler_words_detail = self._detect_filler_words(transcript, words)
@@ -173,6 +177,11 @@ class SpeechAnalysisService:
         - Filler word frequency relative to total words: 35% weight
         - Pause pattern (shorter avg pauses are better): 25% weight
 
+        Safeguards:
+        - Empty or near-empty responses (< 5 words) receive score 0-5.
+        - Responses that are entirely filler words receive score 0-10.
+        - Short responses (< 15 words) are capped at 30.
+
         Args:
             wpm: Words per minute.
             filler_word_count: Total number of filler words detected.
@@ -182,6 +191,20 @@ class SpeechAnalysisService:
         Returns:
             Communication score between 0 and 100 inclusive.
         """
+        # Safeguard: empty or near-empty responses cannot score well
+        if total_words < _MIN_WORDS_FOR_VALID_RESPONSE:
+            # 0-4 words: essentially silence or a single utterance
+            return min(5, total_words)
+
+        # Safeguard: filler-only responses
+        non_filler_words = total_words - filler_word_count
+        if non_filler_words <= 0:
+            # Every word is a filler — this is not a meaningful response
+            return 0
+        if non_filler_words < _MIN_WORDS_FOR_VALID_RESPONSE:
+            # Almost all filler with minimal content
+            return min(10, non_filler_words * 2)
+
         # WPM component (40% weight)
         wpm_score = self._score_wpm(wpm)
 
@@ -193,6 +216,10 @@ class SpeechAnalysisService:
 
         # Weighted combination
         raw_score = (wpm_score * 0.40) + (filler_score * 0.35) + (pause_score * 0.25)
+
+        # Safeguard: short responses (< 15 substantive words) are capped
+        if total_words < _MIN_WORDS_FOR_SUBSTANTIVE_RESPONSE:
+            raw_score = min(raw_score, 30.0)
 
         return max(0, min(100, round(raw_score)))
 
@@ -226,8 +253,9 @@ class SpeechAnalysisService:
     ) -> float:
         """Score filler word usage based on frequency.
 
-        Perfect score (100) when no fillers. Score decreases as the
-        filler-to-word ratio increases.
+        Perfect score (100) when no fillers AND sufficient content.
+        Score decreases as the filler-to-word ratio increases.
+        Returns 0 when there are no words (empty response).
 
         Args:
             filler_word_count: Number of filler words detected.
@@ -237,6 +265,10 @@ class SpeechAnalysisService:
             Score from 0 to 100.
         """
         if total_words == 0:
+            # Empty transcript — no content to evaluate, not a "good" score
+            return 0.0
+
+        if filler_word_count == 0:
             return 100.0
 
         filler_ratio = filler_word_count / total_words

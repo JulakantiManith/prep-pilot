@@ -4,6 +4,9 @@ Provides a resilient interface to Google's Gemini API for generating
 interview questions and feedback. Implements exponential backoff retry
 (1 retry) with a 45-second timeout per request.
 
+Falls back to OpenRouter (openrouter/free) when Gemini is rate-limited,
+unavailable, or returns errors after retry.
+
 OPTIMIZATION: Minimizes API calls to stay within free-tier limits.
 - Questions: 1 batch request for 10-15 questions (cached for 24h)
 - Feedback: 1 request at session end with ALL data
@@ -25,6 +28,7 @@ from google.api_core.exceptions import (
 )
 
 from app.config import get_settings
+from app.integrations.openrouter_client import OpenRouterClient, OpenRouterClientError
 from app.models.question import Question
 from app.services.gemini_usage_tracker import (
     RequestType,
@@ -214,6 +218,108 @@ class GeminiClient:
         except (GoogleAPIError, ResourceExhausted, ServiceUnavailable) as e:
             raise GeminiClientError(f"Gemini API error: {e}") from e
 
+    async def _call_with_fallback(self, prompt: str) -> str:
+        """Try Gemini with retry, then fall back to OpenRouter on failure.
+
+        Used for: Resume parsing (Gemini is primary, OpenRouter is fallback).
+
+        Flow:
+        1. Try Gemini (with 1 retry + exponential backoff)
+        2. If Gemini fails, try OpenRouter as fallback
+        3. If both fail, raise GeminiClientError
+
+        Args:
+            prompt: The prompt to send.
+
+        Returns:
+            Raw text response from whichever provider succeeded.
+
+        Raises:
+            GeminiClientError: If both Gemini and OpenRouter fail.
+        """
+        last_error: Optional[Exception] = None
+
+        # Try Gemini with retry
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                response = await self._call_gemini(prompt)
+                return response
+            except (GeminiClientError, asyncio.TimeoutError) as e:
+                last_error = e
+                if attempt < MAX_RETRIES:
+                    backoff = BASE_BACKOFF_SECONDS * (2 ** attempt)
+                    logger.warning(
+                        "Gemini failed (attempt %d/%d), retrying in %.1fs: %s",
+                        attempt + 1, MAX_RETRIES + 1, backoff, str(e),
+                    )
+                    await asyncio.sleep(backoff)
+                else:
+                    logger.warning(
+                        "Gemini failed after %d attempts: %s",
+                        MAX_RETRIES + 1, str(e),
+                    )
+
+        # Fall back to OpenRouter
+        fallback = OpenRouterClient()
+        if not fallback.is_configured:
+            logger.error(
+                "Gemini failed and OpenRouter is not configured (no OPENROUTER_API_KEY). "
+                "Cannot fall back."
+            )
+            raise GeminiClientError(
+                f"Gemini unavailable and no fallback configured: {last_error}"
+            )
+
+        logger.info("Falling back to OpenRouter after Gemini failure")
+        try:
+            response = await fallback.generate(prompt)
+            logger.info("OpenRouter fallback succeeded")
+            return response
+        except OpenRouterClientError as e:
+            logger.error("OpenRouter fallback also failed: %s", str(e))
+            raise GeminiClientError(
+                f"Both Gemini and OpenRouter failed. "
+                f"Gemini: {last_error} | OpenRouter: {e}"
+            ) from e
+
+    async def _call_openrouter_primary(self, prompt: str) -> str:
+        """Call OpenRouter as the primary provider (no Gemini attempt).
+
+        Used for: Question generation, AI feedback, relevance scoring.
+        These tasks use OpenRouter/free directly to preserve Gemini quota
+        for resume parsing.
+
+        Args:
+            prompt: The prompt to send.
+
+        Returns:
+            Raw text response from OpenRouter.
+
+        Raises:
+            GeminiClientError: If OpenRouter fails (wrapped for compatibility).
+        """
+        client = OpenRouterClient()
+        if not client.is_configured:
+            # If OpenRouter not configured, fall back to Gemini
+            logger.warning(
+                "OpenRouter not configured, falling back to Gemini for this request"
+            )
+            return await self._call_with_fallback(prompt)
+
+        try:
+            response = await client.generate(prompt)
+            logger.debug("OpenRouter primary call succeeded")
+            return response
+        except OpenRouterClientError as e:
+            logger.warning("OpenRouter primary failed: %s. Trying Gemini.", str(e))
+            # Fall back to Gemini if OpenRouter fails
+            try:
+                return await self._call_gemini(prompt)
+            except (GeminiClientError, asyncio.TimeoutError) as gemini_err:
+                raise GeminiClientError(
+                    f"OpenRouter failed ({e}) and Gemini also failed ({gemini_err})"
+                ) from e
+
     def _parse_questions_response(
         self,
         response_text: str,
@@ -221,10 +327,15 @@ class GeminiClient:
         topic: Optional[str],
         difficulty: Optional[str],
     ) -> list[Question]:
-        """Parse Gemini's JSON response into Question objects.
+        """Parse AI provider response into Question objects.
+
+        Handles responses from both Gemini and OpenRouter. Robust to:
+        - Markdown code fences (```json ... ```)
+        - Extra text before/after JSON
+        - Slight formatting variations
 
         Args:
-            response_text: Raw response text from Gemini.
+            response_text: Raw response text from the AI provider.
             interview_type: Interview type for fallback field values.
             topic: Topic for fallback field values.
             difficulty: Difficulty for fallback field values.
@@ -244,12 +355,25 @@ class GeminiClient:
                 lines = lines[:-1]
             text = "\n".join(lines)
 
+        # Try direct parse first
+        data = None
         try:
             data = json.loads(text)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
+            # If direct parse fails, try to find a JSON array in the text
+            # (handles cases where the provider adds extra text around the JSON)
+            start_idx = text.find("[")
+            end_idx = text.rfind("]")
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                try:
+                    data = json.loads(text[start_idx:end_idx + 1])
+                except json.JSONDecodeError:
+                    pass
+
+        if data is None:
             raise GeminiClientError(
-                f"Failed to parse Gemini response as JSON: {e}"
-            ) from e
+                f"Failed to parse AI response as JSON: {text[:200]}"
+            )
 
         if not isinstance(data, list):
             raise GeminiClientError("Gemini response is not a JSON array")
@@ -281,10 +405,11 @@ class GeminiClient:
         num_questions: int = DEFAULT_QUESTION_BATCH_SIZE,
         session_id: Optional[str] = None,
     ) -> list[Question]:
-        """Generate interview questions via Gemini API with retry logic.
+        """Generate interview questions via OpenRouter/free (primary).
 
-        Generates the entire question set in ONE request to minimize API usage.
-        Implements 1 retry with exponential backoff. Logs all usage.
+        Uses OpenRouter as the primary provider for question generation
+        to preserve Gemini quota for resume parsing. Falls back to Gemini
+        if OpenRouter is unavailable.
 
         Args:
             interview_type: Type of interview (hr, technical, behavioral, custom).
@@ -298,73 +423,48 @@ class GeminiClient:
             List of generated Question objects.
 
         Raises:
-            GeminiClientError: If generation fails after all retries.
+            GeminiClientError: If generation fails on all providers.
         """
         prompt = self._build_question_prompt(
             interview_type, role, topic, difficulty, num_questions
         )
         estimated_input_tokens = self._estimate_tokens(prompt)
 
-        last_error: Optional[Exception] = None
+        try:
+            response_text = await self._call_openrouter_primary(prompt)
+            questions = self._parse_questions_response(
+                response_text, interview_type, topic, difficulty
+            )
 
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                response_text = await self._call_gemini(prompt)
-                questions = self._parse_questions_response(
-                    response_text, interview_type, topic, difficulty
-                )
+            # Track successful request
+            estimated_output_tokens = self._estimate_tokens(response_text)
+            usage_tracker.record_request(
+                request_type=RequestType.QUESTION_GENERATION,
+                success=True,
+                session_id=session_id,
+                estimated_input_tokens=estimated_input_tokens,
+                estimated_output_tokens=estimated_output_tokens,
+            )
 
-                # Track successful request
-                estimated_output_tokens = self._estimate_tokens(response_text)
-                usage_tracker.record_request(
-                    request_type=RequestType.QUESTION_GENERATION,
-                    success=True,
-                    session_id=session_id,
-                    estimated_input_tokens=estimated_input_tokens,
-                    estimated_output_tokens=estimated_output_tokens,
-                )
+            logger.info(
+                "Generated %d questions (type=%s, role=%s, topic=%s)",
+                len(questions),
+                interview_type,
+                role,
+                topic,
+            )
+            return questions
 
-                logger.info(
-                    "Generated %d questions in single batch request "
-                    "(type=%s, role=%s, topic=%s)",
-                    len(questions),
-                    interview_type,
-                    role,
-                    topic,
-                )
-                return questions
-
-            except (GeminiClientError, asyncio.TimeoutError) as e:
-                last_error = e
-                if attempt < MAX_RETRIES:
-                    backoff = BASE_BACKOFF_SECONDS * (2**attempt)
-                    logger.warning(
-                        "Gemini API call failed (attempt %d/%d), retrying in %.1fs: %s",
-                        attempt + 1,
-                        MAX_RETRIES + 1,
-                        backoff,
-                        str(e),
-                    )
-                    await asyncio.sleep(backoff)
-                else:
-                    logger.error(
-                        "Gemini API call failed after %d attempts: %s",
-                        MAX_RETRIES + 1,
-                        str(e),
-                    )
-
-        # Track failed request
-        usage_tracker.record_request(
-            request_type=RequestType.QUESTION_GENERATION,
-            success=False,
-            session_id=session_id,
-            estimated_input_tokens=estimated_input_tokens,
-            error=str(last_error),
-        )
-
-        raise GeminiClientError(
-            f"Gemini API unavailable after {MAX_RETRIES + 1} attempts: {last_error}"
-        )
+        except GeminiClientError as e:
+            # Track failed request
+            usage_tracker.record_request(
+                request_type=RequestType.QUESTION_GENERATION,
+                success=False,
+                session_id=session_id,
+                estimated_input_tokens=estimated_input_tokens,
+                error=str(e),
+            )
+            raise
 
     async def generate_resume_questions(
         self,
@@ -375,9 +475,8 @@ class GeminiClient:
     ) -> list[Question]:
         """Generate personalized questions based on resume data.
 
-        Resume-based questions are AI-generated only with no fallback.
-        Generates all questions in ONE batch request.
-        Implements 1 retry with exponential backoff.
+        Uses OpenRouter/free as primary provider for question generation.
+        Falls back to Gemini if OpenRouter fails.
 
         Args:
             resume_data: Extracted resume data dict.
@@ -389,62 +488,36 @@ class GeminiClient:
             List of personalized Question objects.
 
         Raises:
-            GeminiClientError: If generation fails after all retries.
+            GeminiClientError: If generation fails on all providers.
         """
         prompt = self._build_resume_question_prompt(resume_data, role, num_questions)
         estimated_input_tokens = self._estimate_tokens(prompt)
 
-        last_error: Optional[Exception] = None
+        try:
+            response_text = await self._call_openrouter_primary(prompt)
+            questions = self._parse_questions_response(
+                response_text, "resume_based", None, None
+            )
 
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                response_text = await self._call_gemini(prompt)
-                questions = self._parse_questions_response(
-                    response_text, "resume_based", None, None
-                )
+            # Track successful request
+            estimated_output_tokens = self._estimate_tokens(response_text)
+            usage_tracker.record_request(
+                request_type=RequestType.RESUME_QUESTIONS,
+                success=True,
+                session_id=session_id,
+                estimated_input_tokens=estimated_input_tokens,
+                estimated_output_tokens=estimated_output_tokens,
+            )
 
-                # Track successful request
-                estimated_output_tokens = self._estimate_tokens(response_text)
-                usage_tracker.record_request(
-                    request_type=RequestType.RESUME_QUESTIONS,
-                    success=True,
-                    session_id=session_id,
-                    estimated_input_tokens=estimated_input_tokens,
-                    estimated_output_tokens=estimated_output_tokens,
-                )
+            return questions
 
-                return questions
-
-            except (GeminiClientError, asyncio.TimeoutError) as e:
-                last_error = e
-                if attempt < MAX_RETRIES:
-                    backoff = BASE_BACKOFF_SECONDS * (2**attempt)
-                    logger.warning(
-                        "Gemini resume question generation failed (attempt %d/%d), "
-                        "retrying in %.1fs: %s",
-                        attempt + 1,
-                        MAX_RETRIES + 1,
-                        backoff,
-                        str(e),
-                    )
-                    await asyncio.sleep(backoff)
-                else:
-                    logger.error(
-                        "Gemini resume question generation failed after %d attempts: %s",
-                        MAX_RETRIES + 1,
-                        str(e),
-                    )
-
-        # Track failed request
-        usage_tracker.record_request(
-            request_type=RequestType.RESUME_QUESTIONS,
-            success=False,
-            session_id=session_id,
-            estimated_input_tokens=estimated_input_tokens,
-            error=str(last_error),
-        )
-
-        raise GeminiClientError(
-            f"Gemini API unavailable for resume questions after "
-            f"{MAX_RETRIES + 1} attempts: {last_error}"
-        )
+        except GeminiClientError as e:
+            # Track failed request
+            usage_tracker.record_request(
+                request_type=RequestType.RESUME_QUESTIONS,
+                success=False,
+                session_id=session_id,
+                estimated_input_tokens=estimated_input_tokens,
+                error=str(e),
+            )
+            raise

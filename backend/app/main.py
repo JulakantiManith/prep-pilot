@@ -12,6 +12,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.history import router as history_router
 from app.api.routes.interview import router as interview_router
 from app.api.routes.profile import router as profile_router
+from app.api.routes.resume import router as resume_router
 from app.api.routes.sessions import router as sessions_router
 from app.config import get_settings
 
@@ -107,6 +108,7 @@ def create_app() -> FastAPI:
     v1_router.include_router(history_router)
     v1_router.include_router(interview_router)
     v1_router.include_router(profile_router)
+    v1_router.include_router(resume_router)
     v1_router.include_router(sessions_router)
 
     # Include the versioned router

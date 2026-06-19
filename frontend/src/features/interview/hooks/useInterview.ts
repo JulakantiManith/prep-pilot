@@ -336,7 +336,8 @@ export function useInterview(
     if (completingRef.current) return; // Ref-based guard for same-tick calls
     completingRef.current = true;
 
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    // Immediately transition to completed+loading so user sees the processing state
+    setState((prev) => ({ ...prev, isLoading: true, error: null, phase: "completed" }));
     try {
       if (state.isTechnical) {
         const evaluation = await getTechnicalEvaluation(state.sessionId);

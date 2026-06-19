@@ -313,8 +313,8 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
 - [x] 11. Checkpoint - Ensure all Phase 1 tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Resume-based interviews feature (Phase 2)
-  - [ ] 12.1 Implement backend resume parsing with manual editing fallback
+- [x] 12. Resume-based interviews feature (Phase 2)
+  - [x] 12.1 Implement backend resume parsing with manual editing fallback
     - Create `app/services/resume_parser.py` with extraction of skills, projects, experience, education from PDF/DOCX
     - Create `app/api/routes/resume.py` with POST `/api/v1/resume/parse`, GET `/api/v1/resume/extracted/{id}`, PUT `/api/v1/resume/extracted/{id}`, POST `/api/v1/resume/confirm/{id}`
     - Extract within 60 seconds, include confidence score
@@ -323,7 +323,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Handle extraction failure with error message
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-  - [ ] 12.2 Implement frontend resume-based interview flow
+  - [x] 12.2 Implement frontend resume-based interview flow
     - Create editable form displaying extracted resume data (highlighted low-confidence fields)
     - Create confirmation step before question generation
     - Wire into existing interview session flow for resume-based questions

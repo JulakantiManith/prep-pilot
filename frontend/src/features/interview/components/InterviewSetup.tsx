@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
@@ -14,7 +15,7 @@ import type {
   TechnicalSetupFormData,
 } from "../schemas/interviewSchemas";
 
-type SessionMode = "interview" | "technical";
+type SessionMode = "interview" | "technical" | "resume_based";
 
 interface InterviewSetupProps {
   onStartInterview: (data: InterviewSetupFormData) => Promise<void>;
@@ -30,6 +31,7 @@ export function InterviewSetup({
   error,
 }: InterviewSetupProps) {
   const [mode, setMode] = useState<SessionMode>("interview");
+  const navigate = useNavigate();
 
   const interviewForm = useForm<InterviewSetupFormData>({
     resolver: zodResolver(interviewSetupSchema),
@@ -108,6 +110,23 @@ export function InterviewSetup({
           >
             Technical
           </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={mode === "resume_based"}
+            onClick={() => {
+              setMode("resume_based");
+              navigate("/interview/resume");
+            }}
+            className={cn(
+              "flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors",
+              mode === "resume_based"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+            )}
+          >
+            Resume-Based
+          </button>
         </div>
       </div>
 
@@ -140,7 +159,6 @@ export function InterviewSetup({
               <option value="behavioral">Behavioral</option>
               <option value="technical">Technical</option>
               <option value="custom">Custom</option>
-              <option value="resume_based">Resume-Based</option>
             </select>
             {interviewForm.formState.errors.interviewType && (
               <p id="interviewType-error" className="text-xs text-destructive">
@@ -187,21 +205,35 @@ export function InterviewSetup({
             />
           </div>
 
-          {/* Difficulty (optional) */}
+          {/* Difficulty */}
           <div className="space-y-2">
             <label htmlFor="interview-difficulty" className="text-sm font-medium text-foreground">
-              Difficulty (optional)
+              Difficulty
             </label>
             <select
               id="interview-difficulty"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className={cn(
+                "flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                interviewForm.formState.errors.difficulty
+                  ? "border-destructive"
+                  : "border-input"
+              )}
+              aria-invalid={interviewForm.formState.errors.difficulty ? "true" : undefined}
+              aria-describedby={
+                interviewForm.formState.errors.difficulty ? "interview-difficulty-error" : undefined
+              }
               {...interviewForm.register("difficulty")}
             >
-              <option value="">Any</option>
+              <option value="">Select difficulty...</option>
               <option value="beginner">Beginner</option>
               <option value="intermediate">Intermediate</option>
               <option value="advanced">Advanced</option>
             </select>
+            {interviewForm.formState.errors.difficulty && (
+              <p id="interview-difficulty-error" className="text-xs text-destructive">
+                {interviewForm.formState.errors.difficulty.message}
+              </p>
+            )}
           </div>
 
           {/* Number of Questions */}

@@ -153,10 +153,7 @@ class AIFeedbackService:
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                response_text = await asyncio.wait_for(
-                    self._call_gemini(prompt),
-                    timeout=REQUEST_TIMEOUT,
-                )
+                response_text = await self._call_gemini(prompt)
                 report = self._parse_feedback_response(
                     response_text, session_data, confidence_score
                 )
@@ -175,7 +172,7 @@ class AIFeedbackService:
             except asyncio.TimeoutError as e:
                 last_error = e
                 logger.warning(
-                    "Gemini feedback call timed out (attempt %d/%d)",
+                    "Feedback generation timed out (attempt %d/%d)",
                     attempt + 1,
                     MAX_RETRIES + 1,
                 )
@@ -185,7 +182,7 @@ class AIFeedbackService:
             except (GeminiClientError, json.JSONDecodeError, ValueError) as e:
                 last_error = e
                 logger.warning(
-                    "Gemini feedback call failed (attempt %d/%d): %s",
+                    "Feedback generation failed (attempt %d/%d): %s",
                     attempt + 1,
                     MAX_RETRIES + 1,
                     str(e),
@@ -208,18 +205,22 @@ class AIFeedbackService:
         )
 
     async def _call_gemini(self, prompt: str) -> str:
-        """Make a raw Gemini API call for feedback generation.
+        """Make an AI API call using OpenRouter/free as primary provider.
+
+        Uses OpenRouter directly for feedback generation to preserve
+        Gemini quota for resume parsing. Falls back to Gemini if
+        OpenRouter is unavailable.
 
         Args:
             prompt: Constructed feedback prompt.
 
         Returns:
-            Raw text response from Gemini.
+            Raw text response from the provider.
 
         Raises:
-            GeminiClientError: If the API call fails.
+            GeminiClientError: If both providers fail.
         """
-        return await self._gemini._call_gemini(prompt)
+        return await self._gemini._call_openrouter_primary(prompt)
 
     def _build_feedback_prompt(
         self,

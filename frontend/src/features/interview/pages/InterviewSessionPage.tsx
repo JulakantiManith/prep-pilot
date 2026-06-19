@@ -249,7 +249,17 @@ export function InterviewSessionPage() {
         !interview.technicalEvaluation && (
           <div className="space-y-4">
             {interview.isLoading ? (
-              <LoadingSpinner label="Generating session report..." />
+              <div className="flex flex-col items-center justify-center space-y-4 py-12">
+                <LoadingSpinner label="" />
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    Processing interview results...
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Analyzing answers, scoring relevance, and generating feedback
+                  </p>
+                </div>
+              </div>
             ) : (
               <div className="text-center space-y-4">
                 <h2 className="text-xl font-semibold">All Questions Answered!</h2>

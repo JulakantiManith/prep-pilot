@@ -3,6 +3,10 @@
 Provides a service-layer interface for audio-to-text conversion,
 including word-level timestamps for hesitation/pause detection.
 
+Includes safeguards against Whisper hallucination on silent audio:
+- Filler-only transcripts are classified as empty responses
+- Minimum word count threshold for meaningful content
+
 Requirements: 4.3 (transcription within 30 seconds)
 """
 
@@ -33,6 +37,18 @@ class HesitationAnalysis:
 
 # Threshold for a gap between words to count as a hesitation/filler pause
 HESITATION_PAUSE_THRESHOLD = 0.4  # seconds
+
+# Known filler words that Whisper hallucinates from silence/background noise.
+# If the entire transcript consists ONLY of these words, it's treated as empty.
+FILLER_ONLY_WORDS = {
+    "so", "uh", "um", "ah", "oh", "eh", "hm", "hmm", "mm", "mhm",
+    "like", "yeah", "yes", "no", "ok", "okay", "well", "right",
+    "you know", "i mean", "basically", "actually",
+}
+
+# Minimum number of non-filler words required for a transcript to be
+# considered a meaningful response (not hallucinated from silence).
+MIN_MEANINGFUL_WORDS = 2
 
 
 class TranscriptionService:
@@ -111,6 +127,85 @@ class TranscriptionService:
         except GroqClientError as e:
             logger.error("Transcription failed: %s", str(e))
             raise TranscriptionError(f"Failed to transcribe audio: {e}") from e
+
+    def is_meaningful_transcript(self, text: str) -> bool:
+        """Check if a transcript contains meaningful speech content.
+
+        Detects cases where the Whisper model hallucinates filler words
+        from silence or background noise. A transcript is considered
+        NOT meaningful if it consists entirely of common filler words
+        or has fewer than MIN_MEANINGFUL_WORDS non-filler words.
+
+        This is a known behavior of Whisper-based models: when given
+        silent or near-silent audio, they may produce short filler
+        outputs like "So", "Uh", "Um" rather than returning empty text.
+
+        Args:
+            text: The transcript text to evaluate.
+
+        Returns:
+            True if the transcript contains meaningful speech content,
+            False if it appears to be hallucinated from silence.
+        """
+        if not text or not text.strip():
+            return False
+
+        # Normalize: lowercase, strip punctuation
+        cleaned = text.strip().lower()
+        # Remove common punctuation that Whisper adds
+        for char in ".,!?;:\"'()-":
+            cleaned = cleaned.replace(char, "")
+        cleaned = cleaned.strip()
+
+        if not cleaned:
+            return False
+
+        # Check if the entire transcript is a single filler word/phrase
+        if cleaned in FILLER_ONLY_WORDS:
+            logger.info(
+                "Transcript classified as filler-only (hallucination): '%s'",
+                text.strip(),
+            )
+            return False
+
+        # Count non-filler words
+        words = cleaned.split()
+        non_filler_words = [w for w in words if w not in FILLER_ONLY_WORDS]
+
+        if len(non_filler_words) < MIN_MEANINGFUL_WORDS:
+            logger.info(
+                "Transcript below meaningful threshold (%d non-filler words): '%s'",
+                len(non_filler_words),
+                text.strip(),
+            )
+            return False
+
+        return True
+
+    def count_filler_words_in_timestamps(
+        self, words: list[WordTimestamp]
+    ) -> int:
+        """Count filler words found in word-level timestamp data.
+
+        Whisper sometimes preserves filler words (um, uh, like, so) in the
+        word-level timestamps even when the main .text output is cleaned.
+        This provides a secondary source of filler detection.
+
+        Args:
+            words: List of word timestamps from transcription.
+
+        Returns:
+            Count of filler words found in the word timestamps.
+        """
+        if not words:
+            return 0
+
+        filler_count = 0
+        for w in words:
+            word_lower = w.word.strip().lower().rstrip(".,!?;:")
+            if word_lower in FILLER_ONLY_WORDS:
+                filler_count += 1
+        return filler_count
 
     def analyze_hesitations(
         self,

@@ -224,6 +224,16 @@ export function SessionDetail({ session }: SessionDetailProps) {
                         {answer.transcript}
                       </p>
                     )}
+                    {answer.transcript && answer.communicationScore === 0 && answer.totalWords !== null && answer.totalWords <= 2 && (
+                      <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400 italic">
+                        ⚠ No meaningful speech detected — this may be background noise or silence
+                      </p>
+                    )}
+                    {!answer.transcript && (
+                      <p className="mt-2 text-xs text-muted-foreground italic">
+                        No response recorded
+                      </p>
+                    )}
                   </div>
                 </div>
 

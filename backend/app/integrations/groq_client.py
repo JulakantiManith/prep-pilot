@@ -42,11 +42,21 @@ class WordTimestamp:
 
 @dataclass
 class TranscriptionResult:
-    """Result of transcription including text and word timestamps."""
+    """Result of transcription including text and word timestamps.
+
+    Attributes:
+        text: The main transcript as returned by Whisper (may be polished).
+        words: Individual word timestamps from word-level granularity.
+        duration: Total audio duration in seconds.
+        words_transcript: Transcript reconstructed from word-level timestamps.
+            May contain filler words that the main .text has removed.
+            Use this for filler-word analysis and raw speech evaluation.
+    """
 
     text: str
     words: list[WordTimestamp] = field(default_factory=list)
     duration: float = 0.0
+    words_transcript: str = ""  # Reconstructed from word timestamps
 
 
 class GroqClientError(Exception):
@@ -193,16 +203,18 @@ class GroqClient:
         filename: str,
         language: Optional[str],
     ) -> TranscriptionResult:
-        """Send transcription request with verbose_json and word timestamps."""
+        """Send transcription request with verbose_json and word timestamps.
+
+        Note: Groq's whisper-large-v3-turbo produces polished/clean transcripts
+        by design. Filler words may not appear in the output regardless of
+        prompt settings. This is a model-level behavior, not application-level.
+        Hesitation/filler detection relies on word-timestamp gap analysis instead.
+        """
         kwargs: dict = {
             "model": GROQ_STT_MODEL,
             "file": (filename, audio_data),
             "response_format": "verbose_json",
             "timestamp_granularities": ["word", "segment"],
-            "prompt": (
-                "Transcribe verbatim including all filler words such as um, uh, "
-                "like, you know, basically, actually, so, and any hesitations."
-            ),
         }
         if language:
             kwargs["language"] = language
@@ -213,7 +225,6 @@ class GroqClient:
         words: list[WordTimestamp] = []
         duration = 0.0
 
-        # verbose_json returns words in response.words
         if hasattr(response, "words") and response.words:
             for w in response.words:
                 words.append(WordTimestamp(
@@ -230,5 +241,9 @@ class GroqClient:
             duration = float(last_seg.end) if hasattr(last_seg, "end") else float(last_seg.get("end", 0))
 
         text = response.text if hasattr(response, "text") else ""
+        words_transcript = " ".join(w.word for w in words) if words else ""
 
-        return TranscriptionResult(text=text, words=words, duration=duration)
+        return TranscriptionResult(
+            text=text, words=words, duration=duration,
+            words_transcript=words_transcript,
+        )
