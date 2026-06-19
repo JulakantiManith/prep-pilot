@@ -310,7 +310,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - **Property 27: Client/server validation consistency** — same input yields same accept/reject on both sides
     - **Validates: Requirements 1.7, 17.4, 17.5**
 
-- [ ] 11. Checkpoint - Ensure all Phase 1 tests pass
+- [x] 11. Checkpoint - Ensure all Phase 1 tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Resume-based interviews feature (Phase 2)
@@ -426,6 +426,82 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Add consistent empty states with illustrations across all features
     - _Requirements: 15.1, 15.2, 15.3, 15.4_
 
+- [ ] 19. Custom domain and professional email infrastructure (Production Readiness)
+  - [ ] 19.1 Configure custom domain support for frontend, backend, and authentication
+    - Update `frontend/.env.example` with `VITE_APP_DOMAIN` (e.g., `interviewcoach.yourdomain.com`)
+    - Update `backend/.env.example` with `APP_DOMAIN`, `FRONTEND_URL`, `BACKEND_URL` variables
+    - Update `backend/app/config.py` to load and validate domain configuration from environment
+    - Update CORS configuration in `backend/app/main.py` to accept requests from the production custom domain
+    - Update Supabase project settings: set Site URL to `https://{APP_DOMAIN}` and add redirect URLs for `/reset-password`, `/verify-email`, `/login`
+    - Update `frontend/src/shared/lib/supabase.ts` to use `VITE_APP_DOMAIN` for auth redirect URLs
+    - Document DNS requirements: A/CNAME records for frontend, backend subdomain (e.g., `api.yourdomain.com`), and auth callback domain
+    - _Requirements: 1.4, 1.5, 17.2_
+
+  - [ ] 19.2 Configure production URL and redirect settings for Supabase Auth
+    - Update Supabase Auth settings to use custom domain for email confirmation redirect (e.g., `https://{APP_DOMAIN}/verify-email`)
+    - Update password reset redirect URL to `https://{APP_DOMAIN}/reset-password`
+    - Configure Supabase Auth `external_url` to use custom domain if using Supabase custom domain feature
+    - Update `frontend/src/features/auth/services/authService.ts` to pass production redirect URLs in `signUp()`, `resetPasswordForEmail()`, and `signInWithOtp()` calls using environment-based domain
+    - Add `VITE_AUTH_REDIRECT_URL` to frontend env config for explicit auth callback URL
+    - Test that all auth flows (register → verify email → login, forgot password → reset link → new password) work end-to-end with custom domain URLs
+    - _Requirements: 1.1, 1.4, 1.5_
+
+  - [ ] 19.3 Implement SMTP integration for Supabase Auth emails
+    - Configure Supabase project SMTP settings (host, port, username, password, sender address) via Supabase Dashboard or Management API
+    - Add SMTP environment variables to `backend/.env.example`: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SENDER_EMAIL`, `SMTP_SENDER_NAME`
+    - Create `backend/app/integrations/email_client.py` with SMTP client initialization, connection pooling, and send method for transactional emails
+    - Implement retry logic (1 retry with exponential backoff) for failed email sends
+    - Log email send success/failure for monitoring
+    - Verify Supabase Auth uses custom SMTP for verification, OTP, password reset, and magic-link emails instead of default Supabase mailer
+    - _Requirements: 1.1, 1.4, 17.3_
+
+  - [ ] 19.4 Create branded email templates for authentication flows
+    - Create `backend/app/templates/emails/` directory for HTML email templates
+    - Create `verification_email.html` template: branded header with app logo, personalized greeting, verification link button, fallback text link, footer with unsubscribe/contact info
+    - Create `password_reset_email.html` template: branded header, security notice, reset link button with expiration warning (e.g., "This link expires in 1 hour"), fallback text link
+    - Create `magic_link_email.html` template: branded header, one-click login button, expiration notice, security tip ("If you didn't request this, ignore this email")
+    - Create `otp_email.html` template: branded header, prominently displayed OTP code, expiration notice, security warning
+    - Configure Supabase Auth email templates via Dashboard or `supabase/config.toml` to use custom HTML templates with `{{ .ConfirmationURL }}`, `{{ .Token }}`, `{{ .SiteURL }}` variables
+    - Ensure all templates are responsive (mobile-friendly), support dark/light email clients, and pass HTML email validation
+    - All templates use `SMTP_SENDER_NAME` and `SMTP_SENDER_EMAIL` as the "From" address
+    - _Requirements: 1.1, 1.4, 20.1, 20.2_
+
+  - [ ] 19.5 Implement session-completion email notifications
+    - Create `backend/app/services/email_notification_service.py` with `send_session_complete_notification(user_email, session_summary)` method
+    - Create `backend/app/templates/emails/session_complete_email.html` template: branded header, session type and date, overall score with color-coded indicator, top 2 strengths, top improvement area, CTA button to view full report on platform
+    - Integrate notification trigger in `backend/app/services/session_service.py` and `backend/app/services/technical_session_service.py` — fire after session completion and feedback generation
+    - Add user preference for email notifications in profile model: `email_notifications_enabled` (default: true)
+    - Add toggle in frontend profile page to enable/disable session completion emails
+    - Ensure notification is non-blocking (fire-and-forget with error logging, does not delay session completion response)
+    - _Requirements: 10.1, 16.1_
+
+  - [ ] 19.6 Configure email deliverability (SPF, DKIM, DMARC)
+    - Document required DNS TXT records for SPF: `v=spf1 include:{smtp_provider_spf} ~all`
+    - Document required DNS TXT/CNAME records for DKIM signing (provider-specific key rotation)
+    - Document recommended DMARC policy record: `v=DMARC1; p=quarantine; rua=mailto:dmarc@{domain}`
+    - Create `docs/email-deliverability-setup.md` with step-by-step DNS configuration guide for popular providers (SendGrid, AWS SES, Resend, Mailgun)
+    - Add health check endpoint `GET /api/v1/health/email` that verifies SMTP connectivity (authenticated connection test without sending)
+    - Add environment variable `EMAIL_DELIVERABILITY_CHECK_ENABLED` (default: false) for optional startup SMTP validation
+    - _Requirements: 17.2, 17.3_
+
+  - [ ] 19.7 Update environment variables and deployment configuration
+    - Update `backend/.env.example` with all new variables: `APP_DOMAIN`, `FRONTEND_URL`, `BACKEND_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SENDER_EMAIL`, `SMTP_SENDER_NAME`, `EMAIL_DELIVERABILITY_CHECK_ENABLED`, `EMAIL_NOTIFICATIONS_ENABLED`
+    - Update `frontend/.env.example` with: `VITE_APP_DOMAIN`, `VITE_AUTH_REDIRECT_URL`
+    - Update `backend/app/config.py` to validate all new environment variables with sensible defaults for development
+    - Create `docs/deployment-guide.md` covering: domain DNS setup, SSL/TLS certificate configuration, Supabase project settings, SMTP provider setup, environment variable checklist, deployment verification steps
+    - Create `docs/custom-domain-checklist.md` with pre-deployment verification items: DNS propagation check, SSL certificate validation, auth flow testing, email delivery testing, CORS verification
+    - _Requirements: 18.1, 18.7_
+
+  - [ ] 19.8 Validate and test custom domain and email integration
+    - Write integration test for `email_client.py`: verify SMTP connection, send test email, handle connection failure gracefully
+    - Write unit test for `email_notification_service.py`: verify template rendering with session data, verify non-blocking behavior
+    - Write unit test for auth redirect URL construction: verify URLs use production domain from environment
+    - Verify all email templates render correctly with test data (no broken links, no missing variables)
+    - Test full auth flows with custom domain: register → receive branded verification email → click link → land on custom domain → login
+    - Test password reset flow: request reset → receive branded reset email → click link → land on custom domain reset page → set new password
+    - Test session notification: complete interview → receive branded summary email → click CTA → land on session detail page
+    - _Requirements: 1.1, 1.4, 1.5, 17.2_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP
@@ -445,6 +521,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
 - Before implementing Phase 2 or Phase 3 features, ALL Phase 1 tasks must be completed and passing
 - Phase 1 must build successfully with functional auth, interview sessions, analytics, and dashboard
 - Tasks are already in dependency order; this is an explicit enforcement note
+- Task 19 (Custom Domain & Email) is a production-readiness task that should be implemented after all feature work and UI polish are complete
 
 ### Architecture Rules
 
@@ -479,7 +556,12 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     { "id": 15, "tasks": ["15.2", "15.3"] },
     { "id": 16, "tasks": ["16.1", "16.3"] },
     { "id": 17, "tasks": ["16.2"] },
-    { "id": 18, "tasks": ["18.1", "18.2", "18.3", "18.4"] }
+    { "id": 18, "tasks": ["18.1", "18.2", "18.3", "18.4"] },
+    { "id": 19, "tasks": ["19.1", "19.2"] },
+    { "id": 20, "tasks": ["19.3", "19.4"] },
+    { "id": 21, "tasks": ["19.5", "19.6"] },
+    { "id": 22, "tasks": ["19.7"] },
+    { "id": 23, "tasks": ["19.8"] }
   ]
 }
 ```
