@@ -60,6 +60,9 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- Add 'processing' status for async presentation evaluation
+ALTER TYPE session_status ADD VALUE IF NOT EXISTS 'processing';
+
 -- ============================================================================
 -- 3. TABLES
 -- ============================================================================
@@ -195,23 +198,36 @@ END $$;
 -- 5. AUTO-CREATE PROFILE ON USER SIGNUP
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+-- Drop existing trigger and function to recreate with proper config
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS handle_new_user();
+
+-- Recreate with explicit schema references and proper search_path
+-- (Fixes "Database error saving new user" during registration)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
 BEGIN
-  INSERT INTO profiles (user_id)
-  VALUES (NEW.id)
+  INSERT INTO public.profiles (id, user_id, created_at, updated_at)
+  VALUES (
+    gen_random_uuid(),
+    NEW.id,
+    now(),
+    now()
+  )
   ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger on auth.users insert
-DO $$ BEGIN
-  CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION handle_new_user();
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================================================
 -- 6. ROW LEVEL SECURITY (RLS)
@@ -382,10 +398,10 @@ CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_user_id_uploaded_at ON resumes(user_id, uploaded_at DESC);
 
 -- ============================================================================
--- 9. STORAGE BUCKET FOR RESUMES
+-- 9. STORAGE BUCKETS
 -- ============================================================================
 
--- Create storage bucket for resume files (run separately if needed)
+-- Resumes bucket (10 MB limit, PDF and DOCX only)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'resumes',
@@ -393,6 +409,34 @@ VALUES (
   false,
   10485760,  -- 10 MB limit
   ARRAY['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+)
+ON CONFLICT (id) DO UPDATE SET
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- Recordings bucket (25 MB limit for presentation recordings — supports ~20 min video/audio)
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES (
+  'recordings',
+  'recordings',
+  false,
+  26214400  -- 25 MB limit
+)
+ON CONFLICT (id) DO UPDATE SET
+  file_size_limit = EXCLUDED.file_size_limit;
+
+-- Materials bucket (50 MB limit for PPT/PDF presentation slides)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'materials',
+  'materials',
+  false,
+  52428800,  -- 50 MB limit
+  ARRAY[
+    'application/pdf',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  ]
 )
 ON CONFLICT (id) DO UPDATE SET
   file_size_limit = EXCLUDED.file_size_limit,
@@ -421,6 +465,40 @@ CREATE POLICY "Users can delete own resumes from storage"
   USING (
     bucket_id = 'resumes'
     AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Storage RLS policies for recordings bucket
+DROP POLICY IF EXISTS "Users can upload own recordings" ON storage.objects;
+CREATE POLICY "Users can upload own recordings"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'recordings'
+    AND auth.uid()::text = (storage.foldername(name))[2]
+  );
+
+DROP POLICY IF EXISTS "Users can view own recordings" ON storage.objects;
+CREATE POLICY "Users can view own recordings"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'recordings'
+    AND auth.uid()::text = (storage.foldername(name))[2]
+  );
+
+-- Storage RLS policies for materials bucket
+DROP POLICY IF EXISTS "Users can upload own materials" ON storage.objects;
+CREATE POLICY "Users can upload own materials"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'materials'
+    AND auth.uid()::text = (storage.foldername(name))[2]
+  );
+
+DROP POLICY IF EXISTS "Users can view own materials" ON storage.objects;
+CREATE POLICY "Users can view own materials"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'materials'
+    AND auth.uid()::text = (storage.foldername(name))[2]
   );
 
 -- ============================================================================

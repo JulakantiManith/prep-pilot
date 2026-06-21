@@ -294,7 +294,13 @@ def test_full_evaluation_pipeline_mock():
     mock_supabase.storage.from_.return_value.list.return_value = []
     
     mock_transcription = MagicMock()
-    mock_transcription.transcribe_audio = AsyncMock(return_value=SAMPLE_TRANSCRIPT)
+    # Create a mock TranscriptionResult with .text and .duration attributes
+    mock_transcription_result = MagicMock()
+    mock_transcription_result.text = SAMPLE_TRANSCRIPT
+    mock_transcription_result.duration = 120.0
+    mock_transcription_result.words = []
+    mock_transcription.transcribe_audio_detailed = AsyncMock(return_value=mock_transcription_result)
+    mock_transcription.is_meaningful_transcript = MagicMock(return_value=True)
     
     with patch("app.services.presentation_service.get_supabase_client", return_value=mock_supabase):
         service = PresentationService(

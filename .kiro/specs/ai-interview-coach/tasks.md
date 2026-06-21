@@ -348,7 +348,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Support PPT/PDF material upload
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 14. Checkpoint - Ensure all Phase 2 tests pass
+- [x] 14. Checkpoint - Ensure all Phase 2 tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 15. Eye contact and head pose analysis (Phase 3)

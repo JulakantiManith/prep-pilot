@@ -72,7 +72,7 @@ class TestOpenRouterClientConfiguration:
         mock_settings.return_value = MagicMock(openrouter_api_key="")
         client = OpenRouterClient()
         with pytest.raises(OpenRouterClientError, match="not configured"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.generate("test prompt")
             )
 
@@ -99,7 +99,7 @@ class TestOpenRouterClientAPIResponses:
             mock_client_class.return_value = mock_client
 
             client = OpenRouterClient()
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 client.generate("test prompt")
             )
             assert result == "Generated text response"
@@ -121,7 +121,7 @@ class TestOpenRouterClientAPIResponses:
 
             client = OpenRouterClient()
             with pytest.raises(OpenRouterClientError, match="rate limited"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client.generate("test")
                 )
 
@@ -142,7 +142,7 @@ class TestOpenRouterClientAPIResponses:
 
             client = OpenRouterClient()
             with pytest.raises(OpenRouterClientError, match="server error"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client.generate("test")
                 )
 
@@ -163,7 +163,7 @@ class TestOpenRouterClientAPIResponses:
 
             client = OpenRouterClient()
             with pytest.raises(OpenRouterClientError, match="server error"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client.generate("test")
                 )
 
@@ -181,7 +181,7 @@ class TestOpenRouterClientAPIResponses:
 
             client = OpenRouterClient()
             with pytest.raises(OpenRouterClientError, match="timed out"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client.generate("test")
                 )
 
@@ -203,7 +203,7 @@ class TestOpenRouterClientAPIResponses:
 
             client = OpenRouterClient()
             with pytest.raises(OpenRouterClientError, match="no choices"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client.generate("test")
                 )
 
@@ -227,7 +227,7 @@ class TestOpenRouterClientAPIResponses:
 
             client = OpenRouterClient()
             with pytest.raises(OpenRouterClientError, match="empty content"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client.generate("test")
                 )
 
@@ -250,7 +250,7 @@ class TestOpenRouterClientAPIResponses:
             mock_client_class.return_value = mock_client
 
             client = OpenRouterClient()
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.generate("test")
             )
 
@@ -282,7 +282,7 @@ class TestGeminiFallbackToOpenRouter:
             return_value="Gemini response"
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.gemini_client._call_with_fallback("test prompt")
         )
 
@@ -303,7 +303,7 @@ class TestGeminiFallbackToOpenRouter:
         )
         mock_or_class.return_value = mock_or_instance
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.gemini_client._call_with_fallback("test prompt")
         )
 
@@ -324,7 +324,7 @@ class TestGeminiFallbackToOpenRouter:
         )
         mock_or_class.return_value = mock_or_instance
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.gemini_client._call_with_fallback("test prompt")
         )
 
@@ -345,7 +345,7 @@ class TestGeminiFallbackToOpenRouter:
         mock_or_class.return_value = mock_or_instance
 
         with pytest.raises(GeminiClientError, match="Both Gemini and OpenRouter"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 self.gemini_client._call_with_fallback("test prompt")
             )
 
@@ -361,7 +361,7 @@ class TestGeminiFallbackToOpenRouter:
         mock_or_class.return_value = mock_or_instance
 
         with pytest.raises(GeminiClientError, match="no fallback configured"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 self.gemini_client._call_with_fallback("test prompt")
             )
 
@@ -385,7 +385,7 @@ class TestGeminiFallbackToOpenRouter:
         mock_or_instance.generate = AsyncMock(return_value="fallback result")
         mock_or_class.return_value = mock_or_instance
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             self.gemini_client._call_with_fallback("test prompt")
         )
 
@@ -423,7 +423,7 @@ class TestQuestionGenerationFallback:
             question_bank=MagicMock(),
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             generator.generate_questions(
                 interview_type="technical",
                 role="Software Engineer",
@@ -459,7 +459,7 @@ class TestQuestionGenerationFallback:
             question_bank=mock_bank,
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             generator.generate_questions(
                 interview_type="hr",
                 role="Product Manager",
@@ -487,7 +487,7 @@ class TestQuestionGenerationFallback:
             question_bank=MagicMock(),
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             generator.generate_questions(
                 interview_type="hr",
                 role="Engineer",
@@ -560,7 +560,7 @@ class TestAIFeedbackFallback:
 
         service = AIFeedbackService(gemini_client=mock_gemini)
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             service.generate_feedback(
                 session_data=_make_session_data(),
                 speech_metrics=_make_speech_metrics(),
@@ -581,7 +581,7 @@ class TestAIFeedbackFallback:
 
         service = AIFeedbackService(gemini_client=mock_gemini)
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             service.generate_feedback(
                 session_data=_make_session_data(),
                 speech_metrics=_make_speech_metrics(),
@@ -669,7 +669,7 @@ class TestResumeParserFallback:
 
         # Simulate the _do_parse path where _call_with_fallback is called
         with pytest.raises(GeminiClientError, match="Both providers"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 mock_gemini._call_with_fallback("extract resume")
             )
 
@@ -826,7 +826,7 @@ class TestEndToEndFallbackFlow:
         mock_or_class.return_value = mock_or_instance
 
         # Generate questions through the full chain
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             gemini_client.generate_questions(
                 interview_type="technical",
                 role="Software Engineer",
@@ -871,7 +871,7 @@ class TestEndToEndFallbackFlow:
 
         service = AIFeedbackService(gemini_client=gemini_client)
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             service.generate_feedback(
                 session_data=_make_session_data(),
                 speech_metrics=_make_speech_metrics(),
@@ -909,7 +909,7 @@ class TestEndToEndFallbackFlow:
 
         service = AIFeedbackService(gemini_client=gemini_client)
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             service.generate_feedback(
                 session_data=_make_session_data(),
                 speech_metrics=_make_speech_metrics(),
