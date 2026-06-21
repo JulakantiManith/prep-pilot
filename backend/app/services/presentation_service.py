@@ -324,20 +324,52 @@ class PresentationService:
         except Exception as e:
             logger.warning("Materials parsing failed: %s", str(e))
 
-        # Generate presentation scores and feedback
-        try:
-            scores = await self._analyze_presentation(
-                session, transcript, speech_metrics, materials_content
+        # Check if transcript is meaningful — if not, user didn't speak
+        has_meaningful_speech = bool(
+            transcript.strip()
+            and self._transcription.is_meaningful_transcript(transcript)
+        )
+
+        if not has_meaningful_speech:
+            logger.info("No meaningful speech detected — returning zero scores")
+            scores = PresentationScores(
+                speaking_speed=0,
+                clarity=0,
+                structure=0,
+                communication=0,
+                engagement=0,
             )
-            feedback = await self._generate_presentation_feedback(
-                session, scores, transcript, materials_content
+            feedback = FeedbackReport(
+                strengths=[
+                    "Session was recorded successfully",
+                    "Presentation materials were prepared (if uploaded)",
+                ],
+                weaknesses=[
+                    "No speech was detected in the recording",
+                    "The presentation cannot be evaluated without spoken content",
+                ],
+                recommendations=[
+                    "Ensure your microphone is working and not muted before recording",
+                    "Speak clearly and audibly throughout your presentation",
+                    "Try recording again with the microphone positioned closer to you",
+                ],
+                presentation_scores=scores,
             )
-        except Exception as e:
-            logger.warning(
-                "AI analysis failed, using algorithmic fallback: %s", str(e)
-            )
-            scores = self._generate_algorithmic_scores(session, speech_metrics)
-            feedback = self._generate_algorithmic_feedback(scores)
+        else:
+            # Generate presentation scores and feedback
+            try:
+                scores = await self._analyze_presentation(
+                    session, transcript, speech_metrics, materials_content
+                )
+                feedback = await self._generate_presentation_feedback(
+                    session, scores, transcript, materials_content
+                )
+            except Exception as e:
+                logger.warning(
+                    "AI analysis failed, using algorithmic fallback: %s", str(e)
+                )
+                scores = self._generate_algorithmic_scores(session, speech_metrics)
+                feedback = self._generate_algorithmic_feedback(scores)
 
         # Compute overall score as average of presentation categories
         overall_score = round(
@@ -540,6 +572,9 @@ class PresentationService:
             "4. communication: How effective is the overall delivery and message?\n"
             "5. engagement: How engaging, dynamic, and compelling is the presentation? "
             "Does the speaker add value beyond just reading slides?\n\n"
+            "IMPORTANT: Only evaluate what can be measured from the AUDIO transcript. "
+            "Do NOT factor in eye contact, body language, gestures, or visual presence "
+            "— we only have the spoken words, not video analysis.\n\n"
             "Return ONLY a JSON object with these five keys and integer values.\n"
             "Example: {\"speaking_speed\": 75, \"clarity\": 80, \"structure\": 70, "
             "\"communication\": 85, \"engagement\": 65}"
@@ -700,6 +735,9 @@ class PresentationService:
             "Focus on presentation-specific improvements for speed, clarity, "
             "structure, communication, and engagement. Reference specific parts "
             "of the transcript and slide content where possible.\n"
+            "IMPORTANT: Only evaluate what can be measured from the AUDIO transcript. "
+            "Do NOT mention eye contact, body language, gestures, facial expressions, "
+            "or any visual elements — we only have audio data, not video analysis.\n"
             "Return ONLY the JSON object, no other text."
         )
 

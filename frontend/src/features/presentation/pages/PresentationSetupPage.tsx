@@ -14,7 +14,9 @@ export function PresentationSetupPage() {
     setError(null);
     try {
       const result = await createPresentationSession(data);
-      navigate(`/presentation/session/${result.session.id}`);
+      navigate(`/presentation/session/${result.session.id}`, {
+        state: { durationMinutes: data.duration_estimate_minutes || 5 },
+      });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to create presentation session";

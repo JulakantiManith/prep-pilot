@@ -1,6 +1,12 @@
-import { useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import {
+  Loader2,
+  Upload,
+  FileText,
+  CheckCircle2,
+  Video,
+} from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { PresentationRecorder } from "../components/PresentationRecorder";
 import { PresentationReport } from "../components/PresentationReport";
@@ -11,20 +17,71 @@ import {
 } from "../services/presentationService";
 import type { CompletePresentationResponse } from "../services/presentationService";
 
-type SessionPhase = "recording" | "processing" | "report";
+const ACCEPTED_MATERIAL_TYPES = [
+  "application/pdf",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+const ACCEPTED_EXTENSIONS = ".pdf,.ppt,.pptx";
+
+type SessionPhase = "prepare" | "recording" | "processing" | "report";
 
 export function PresentationSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [phase, setPhase] = useState<SessionPhase>("recording");
+  // Get user-chosen duration from navigation state (default 5 min)
+  const durationMinutes: number =
+    (location.state as { durationMinutes?: number } | null)?.durationMinutes || 5;
+
+  const [phase, setPhase] = useState<SessionPhase>("prepare");
   const [isUploading, setIsUploading] = useState(false);
   const [materialsUploaded, setMaterialsUploaded] = useState(false);
+  const [materialsFile, setMaterialsFile] = useState<File | null>(null);
+  const [materialsError, setMaterialsError] = useState<string | null>(null);
   const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [report, setReport] = useState<CompletePresentationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
+  const autoFinishRef = useRef(false);
+
+  const handleMaterialsChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      setMaterialsError(null);
+      const file = e.target.files?.[0];
+      if (!file || !sessionId) return;
+
+      if (!ACCEPTED_MATERIAL_TYPES.includes(file.type)) {
+        setMaterialsError("Invalid file type. Please upload a PDF or PowerPoint file.");
+        return;
+      }
+
+      if (file.size > 50 * 1024 * 1024) {
+        setMaterialsError("File is too large. Maximum size is 50MB.");
+        return;
+      }
+
+      setMaterialsFile(file);
+      setIsUploading(true);
+      try {
+        await uploadMaterials(sessionId, file);
+        setMaterialsUploaded(true);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to upload materials";
+        setMaterialsError(message);
+        setMaterialsFile(null);
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [sessionId]
+  );
+
+  const handleStartPresentation = () => {
+    setPhase("recording");
+  };
 
   const handleRecordingComplete = useCallback(
     (blob: Blob, duration: number) => {
@@ -34,24 +91,18 @@ export function PresentationSessionPage() {
     []
   );
 
-  const handleMaterialsSelected = useCallback(
-    async (file: File) => {
-      if (!sessionId) return;
-      setIsUploading(true);
-      setError(null);
-      try {
-        await uploadMaterials(sessionId, file);
-        setMaterialsUploaded(true);
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Failed to upload materials";
-        setError(message);
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    [sessionId]
-  );
+  // Auto-finish session when recording completes via timer expiry
+  useEffect(() => {
+    if (recordingBlob && autoFinishRef.current && !isCompleting && sessionId) {
+      autoFinishRef.current = false;
+      handleFinishSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingBlob]);
+
+  const handleTimerExpired = useCallback(() => {
+    autoFinishRef.current = true;
+  }, []);
 
   const handleFinishSession = async () => {
     if (!sessionId || !recordingBlob) return;
@@ -60,17 +111,13 @@ export function PresentationSessionPage() {
     setError(null);
 
     try {
-      // Upload recording first
       await uploadRecording(sessionId, recordingBlob);
-
-      // Then complete session
       setPhase("processing");
       const result = await completePresentationSession(sessionId);
       setReport(result);
       setPhase("report");
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to complete session";
+      const message = err instanceof Error ? err.message : "Failed to complete session";
       setError(message);
       setPhase("recording");
     } finally {
@@ -89,6 +136,100 @@ export function PresentationSessionPage() {
     );
   }
 
+  // Phase: Prepare — upload materials, then start presentation
+  if (phase === "prepare") {
+    return (
+      <div className="py-6">
+        <div className="mx-auto max-w-2xl space-y-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Video className="h-6 w-6 text-primary" />
+              <h1 className="text-2xl font-bold">Prepare Your Presentation</h1>
+            </div>
+            <p className="text-muted-foreground">
+              Upload your slides (optional), then start presenting. You have{" "}
+              <span className="font-semibold text-foreground">{durationMinutes} minute{durationMinutes !== 1 ? "s" : ""}</span> to present.
+            </p>
+          </div>
+
+          {error && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive" role="alert">
+              {error}
+            </div>
+          )}
+
+          {/* Materials Upload Section */}
+          <div className="rounded-lg border border-border p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <h3 className="text-base font-medium">Upload Presentation Slides (optional)</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Upload your PPT, PPTX, or PDF slides. The AI will evaluate how well you follow your slides during the presentation.
+            </p>
+
+            {materialsError && (
+              <p className="text-sm text-destructive" role="alert">{materialsError}</p>
+            )}
+
+            {materialsUploaded ? (
+              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                <CheckCircle2 className="h-5 w-5" />
+                <span className="font-medium">Uploaded: {materialsFile?.name}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="materials-upload-prepare"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Upload className="h-4 w-4" />
+                  {materialsFile ? materialsFile.name : "Choose file"}
+                </label>
+                <input
+                  id="materials-upload-prepare"
+                  type="file"
+                  accept={ACCEPTED_EXTENSIONS}
+                  onChange={handleMaterialsChange}
+                  className="sr-only"
+                  aria-label="Upload presentation materials"
+                />
+                {isUploading && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Session Info */}
+          <div className="rounded-md border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
+            <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              Session details
+            </h3>
+            <ul className="mt-2 space-y-1 text-sm text-blue-700 dark:text-blue-300">
+              <li>• Duration: <strong>{durationMinutes} minute{durationMinutes !== 1 ? "s" : ""}</strong></li>
+              <li>• Camera and microphone will be activated</li>
+              <li>• Timer will count down — session auto-saves when time is up</li>
+              <li>• You can also stop early and submit manually</li>
+            </ul>
+          </div>
+
+          {/* Start Presentation Button */}
+          <Button
+            onClick={handleStartPresentation}
+            size="lg"
+            className="w-full"
+            disabled={isUploading}
+          >
+            <Video className="mr-2 h-4 w-4" />
+            Start Presentation
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Phase: Processing
   if (phase === "processing") {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -106,6 +247,7 @@ export function PresentationSessionPage() {
     );
   }
 
+  // Phase: Report
   if (phase === "report" && report) {
     return (
       <div className="py-6 space-y-6">
@@ -119,6 +261,7 @@ export function PresentationSessionPage() {
     );
   }
 
+  // Phase: Recording
   return (
     <div className="py-6 space-y-6">
       {error && (
@@ -132,9 +275,11 @@ export function PresentationSessionPage() {
 
       <PresentationRecorder
         sessionId={sessionId}
+        durationSeconds={durationMinutes * 60}
         onRecordingComplete={handleRecordingComplete}
-        onMaterialsSelected={handleMaterialsSelected}
-        isUploading={isUploading}
+        onTimerExpired={handleTimerExpired}
+        onMaterialsSelected={() => {}}
+        isUploading={false}
         materialsUploaded={materialsUploaded}
       />
 

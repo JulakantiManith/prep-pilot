@@ -1,26 +1,18 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import {
   Loader2,
   Video,
   Square,
-  Upload,
-  FileText,
   CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { useVideoRecorder } from "../hooks/useVideoRecorder";
 
-const ACCEPTED_MATERIAL_TYPES = [
-  "application/pdf",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-];
-
-const ACCEPTED_EXTENSIONS = ".pdf,.ppt,.pptx";
-
 interface PresentationRecorderProps {
   sessionId: string;
+  durationSeconds: number;
   onRecordingComplete: (blob: Blob, duration: number) => void;
+  onTimerExpired: () => void;
   onMaterialsSelected: (file: File) => void;
   isUploading: boolean;
   materialsUploaded: boolean;
@@ -28,14 +20,14 @@ interface PresentationRecorderProps {
 
 export function PresentationRecorder({
   sessionId: _sessionId,
+  durationSeconds,
   onRecordingComplete,
-  onMaterialsSelected,
-  isUploading,
-  materialsUploaded,
+  onTimerExpired,
+  onMaterialsSelected: _onMaterialsSelected,
+  isUploading: _isUploading,
+  materialsUploaded: _materialsUploaded,
 }: PresentationRecorderProps) {
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
-  const [materialsFile, setMaterialsFile] = useState<File | null>(null);
-  const [materialsError, setMaterialsError] = useState<string | null>(null);
 
   const {
     status,
@@ -65,30 +57,13 @@ export function PresentationRecorder({
     }
   }, [status, videoBlob, duration, onRecordingComplete]);
 
-  const handleMaterialsChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setMaterialsError(null);
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      if (!ACCEPTED_MATERIAL_TYPES.includes(file.type)) {
-        setMaterialsError(
-          "Invalid file type. Please upload a PDF or PowerPoint file."
-        );
-        return;
-      }
-
-      // 50MB limit for materials
-      if (file.size > 50 * 1024 * 1024) {
-        setMaterialsError("File is too large. Maximum size is 50MB.");
-        return;
-      }
-
-      setMaterialsFile(file);
-      onMaterialsSelected(file);
-    },
-    [onMaterialsSelected]
-  );
+  // Auto-stop recording when user-chosen duration expires
+  useEffect(() => {
+    if (status === "recording" && duration >= durationSeconds) {
+      stopRecording();
+      onTimerExpired();
+    }
+  }, [status, duration, durationSeconds, stopRecording, onTimerExpired]);
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -146,96 +121,108 @@ export function PresentationRecorder({
                   ? "Requesting camera access..."
                   : "Click Start Recording to begin"}
               </p>
+              <p className="mt-2 text-lg font-bold text-white/90">
+                {formatDuration(durationSeconds)}
+              </p>
+              <p className="text-xs text-white/50">session duration</p>
             </div>
           </div>
         )}
 
-        {/* Recording indicator */}
+        {/* Recording indicator with countdown timer */}
         {status === "recording" && (
-          <div className="absolute top-4 left-4 flex items-center gap-2 rounded-full bg-red-600/90 px-3 py-1">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-white" />
-            <span className="text-xs font-medium text-white">
-              {formatDuration(duration)}
-            </span>
-          </div>
+          <>
+            {/* Timer showing elapsed / chosen duration */}
+            <div className="absolute top-4 left-4 flex items-center gap-2 rounded-full bg-red-600/90 px-3 py-1">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-white" />
+              <span className="text-xs font-medium text-white">
+                {formatDuration(duration)} / {formatDuration(durationSeconds)}
+              </span>
+            </div>
+            {/* Warning when under 1 minute left */}
+            {durationSeconds - duration <= 60 && durationSeconds - duration > 0 && (
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 rounded-full bg-yellow-500/90 px-3 py-1">
+                <span className="text-xs font-medium text-white">
+                  ⚠ {formatDuration(durationSeconds - duration)} left
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      {/* Countdown progress bar — always visible during session */}
+      {(status === "idle" || status === "recording" || status === "error") && (
+        <div className="space-y-1">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ${
+                status !== "recording"
+                  ? "bg-green-500"
+                  : (durationSeconds - duration) / durationSeconds <= 0.1
+                    ? "bg-red-500"
+                    : (durationSeconds - duration) / durationSeconds <= 0.5
+                      ? "bg-yellow-500"
+                      : "bg-green-500"
+              }`}
+              style={{
+                width: status === "recording"
+                  ? `${Math.max(0, ((durationSeconds - duration) / durationSeconds) * 100)}%`
+                  : "100%",
+              }}
+              role="progressbar"
+              aria-valuenow={status === "recording" ? durationSeconds - duration : durationSeconds}
+              aria-valuemin={0}
+              aria-valuemax={durationSeconds}
+              aria-label={`Time remaining: ${formatDuration(status === "recording" ? durationSeconds - duration : durationSeconds)}`}
+            />
+          </div>
+          <p className="text-center text-sm font-medium text-foreground">
+            {status === "recording"
+              ? `⏱ ${formatDuration(durationSeconds - duration)} remaining`
+              : `⏱ ${formatDuration(durationSeconds)} session`}
+          </p>
+        </div>
+      )}
 
       {/* Recording Controls */}
-      <div className="flex items-center justify-center gap-4">
-        {(status === "idle" || status === "error") && (
-          <Button onClick={startRecording} size="lg">
-            <Video className="mr-2 h-4 w-4" />
-            Start Recording
-          </Button>
-        )}
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center justify-center gap-4">
+          {(status === "idle" || status === "error") && (
+            <Button onClick={startRecording} size="lg">
+              <Video className="mr-2 h-4 w-4" />
+              Start Recording
+            </Button>
+          )}
 
-        {status === "requesting" && (
-          <Button disabled size="lg">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Requesting Access...
-          </Button>
-        )}
+          {status === "requesting" && (
+            <Button disabled size="lg">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Requesting Access...
+            </Button>
+          )}
 
-        {status === "recording" && (
-          <Button onClick={stopRecording} variant="destructive" size="lg">
-            <Square className="mr-2 h-4 w-4" />
-            Stop Recording
-          </Button>
-        )}
+          {status === "recording" && (
+            <Button onClick={stopRecording} variant="destructive" size="lg">
+              <Square className="mr-2 h-4 w-4" />
+              Stop Recording
+            </Button>
+          )}
 
-        {status === "stopped" && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <span>Recording complete — {formatDuration(duration)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Materials Upload */}
-      <div className="rounded-lg border border-border p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-sm font-medium">
-            Presentation Materials (optional)
-          </h3>
+          {status === "stopped" && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <span>Recording complete — {formatDuration(duration)}</span>
+            </div>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Upload your slides (PPT, PPTX, or PDF) to associate with this session.
-        </p>
 
-        {materialsError && (
-          <p className="text-xs text-destructive" role="alert">
-            {materialsError}
+        {/* Duration info */}
+        {(status === "idle" || status === "error" || status === "recording") && (
+          <p className="text-xs text-muted-foreground">
+            Session duration: {Math.floor(durationSeconds / 60)} minute{Math.floor(durationSeconds / 60) !== 1 ? "s" : ""}
+            {status === "recording" ? " — recording will auto-save when time is up" : ""}
           </p>
-        )}
-
-        {materialsUploaded ? (
-          <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-            <CheckCircle2 className="h-4 w-4" />
-            <span>Materials uploaded: {materialsFile?.name}</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <label
-              htmlFor="materials-upload"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              <Upload className="h-4 w-4" />
-              {materialsFile ? materialsFile.name : "Choose file"}
-            </label>
-            <input
-              id="materials-upload"
-              type="file"
-              accept={ACCEPTED_EXTENSIONS}
-              onChange={handleMaterialsChange}
-              className="sr-only"
-              aria-label="Upload presentation materials"
-            />
-            {isUploading && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            )}
-          </div>
         )}
       </div>
     </div>
