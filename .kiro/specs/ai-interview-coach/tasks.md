@@ -329,15 +329,15 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Wire into existing interview session flow for resume-based questions
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 13. Presentation coach feature (Phase 2)
-  - [ ] 13.1 Implement backend presentation session endpoints
+- [x] 13. Presentation coach feature (Phase 2)
+  - [x] 13.1 Implement backend presentation session endpoints
     - Create `app/services/presentation_service.py` (presentation-specific analysis: speed, clarity, structure, communication, engagement)
     - Create `app/api/routes/presentation.py` with POST `/api/v1/sessions/presentation`, POST `/{id}/recording`, POST `/{id}/materials`, POST `/{id}/complete`
     - Create `app/api/schemas/presentation_schemas.py`
     - Generate presentation-specific scores and improvement suggestions
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-  - [ ] 13.2 Implement frontend presentation coach feature
+  - [x] 13.2 Implement frontend presentation coach feature
     - Create `src/features/presentation/hooks/useVideoRecorder.ts` (audio + video MediaRecorder)
     - Create `src/features/presentation/services/presentationService.ts`
     - Create `src/features/presentation/hooks/usePresentation.ts`

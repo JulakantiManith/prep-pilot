@@ -15,10 +15,8 @@ import { AnalyticsPage } from "@/features/analytics/pages/AnalyticsPage";
 import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { SessionDetailPage } from "@/features/history/pages/SessionDetailPage";
 import { LandingPage } from "@/features/landing/pages/LandingPage";
-
-function PresentationPage() {
-  return <div className="space-y-4"><h1 className="text-2xl font-bold">Presentation Practice</h1><p className="text-muted-foreground">Practice your presentation skills.</p></div>;
-}
+import { PresentationSetupPage } from "@/features/presentation/pages/PresentationSetupPage";
+import { PresentationSessionPage } from "@/features/presentation/pages/PresentationSessionPage";
 
 function NotFoundPage() {
   return <div className="flex min-h-screen items-center justify-center"><div className="space-y-4 text-center"><h1 className="text-4xl font-bold">404</h1><p className="text-muted-foreground">Page not found.</p></div></div>;
@@ -45,7 +43,8 @@ export function AppRoutes() {
           <Route path="/interview" element={<InterviewSetupPage />} />
           <Route path="/interview/resume" element={<ResumeInterviewPage />} />
           <Route path="/interview/session/:sessionId" element={<InterviewSessionPage />} />
-          <Route path="/presentation" element={<PresentationPage />} />
+          <Route path="/presentation" element={<PresentationSetupPage />} />
+          <Route path="/presentation/session/:sessionId" element={<PresentationSessionPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/history/:sessionId" element={<SessionDetailPage />} />

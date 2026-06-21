@@ -20,8 +20,10 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Timeout for each Groq API call (seconds) - Requirement 4.3
-REQUEST_TIMEOUT = 30.0
+# Timeout for each Groq API call (seconds)
+# Increased to 120s to support longer presentations (up to 20 min audio).
+# Groq Whisper supports up to 25MB files; longer audio takes more processing time.
+REQUEST_TIMEOUT = 120.0
 
 # Retry configuration - Requirement 17.3
 MAX_RETRIES = 1
