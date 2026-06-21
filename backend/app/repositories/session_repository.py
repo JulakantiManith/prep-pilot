@@ -337,3 +337,27 @@ class SessionRepository:
             return response.data[0]
 
         return self._retry_write("create_session_feedback", _create)
+
+    def get_session_feedback(self, session_id: UUID) -> dict | None:
+        """Get feedback for a session.
+
+        Args:
+            session_id: The session UUID.
+
+        Returns:
+            The feedback record dict, or None if not found.
+        """
+        try:
+            response = (
+                self._client.table("session_feedback")
+                .select("*")
+                .eq("session_id", str(session_id))
+                .limit(1)
+                .execute()
+            )
+            if response.data:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.warning("Failed to get session feedback: %s", str(e))
+            return None

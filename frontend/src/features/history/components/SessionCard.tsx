@@ -1,4 +1,4 @@
-import { Briefcase, Presentation, Clock } from "lucide-react";
+import { Briefcase, Presentation, Clock, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import type { SessionListItem } from "../services/historyService";
 
@@ -54,12 +54,48 @@ function ScoreBadge({ score }: { score: number | null }) {
   );
 }
 
+function StatusBadge({ status }: { status: string }) {
+  if (status === "completed") return null;
+
+  if (status === "processing") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Processing
+      </span>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/30 dark:text-red-400">
+        <AlertCircle className="h-3 w-3" />
+        Failed
+      </span>
+    );
+  }
+
+  return null;
+}
+
 export function SessionCard({ session, onClick }: SessionCardProps) {
+  const isClickable = session.status === "completed";
+
   return (
     <button
-      onClick={() => onClick(session.id)}
-      className="w-full rounded-lg border bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      aria-label={`View ${formatSessionType(session.sessionType)} session from ${formatDate(session.createdAt)}`}
+      onClick={() => isClickable && onClick(session.id)}
+      disabled={!isClickable}
+      className={cn(
+        "w-full rounded-lg border bg-card p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        isClickable
+          ? "hover:bg-accent/50 cursor-pointer"
+          : "opacity-80 cursor-default"
+      )}
+      aria-label={
+        isClickable
+          ? `View ${formatSessionType(session.sessionType)} session from ${formatDate(session.createdAt)}`
+          : `${formatSessionType(session.sessionType)} session — ${session.status}`
+      }
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -78,9 +114,23 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
             <Clock className="h-3.5 w-3.5" />
             <span>{formatDuration(session.durationSeconds)}</span>
           </div>
-          <ScoreBadge score={session.overallScore} />
+          {session.status === "completed" ? (
+            <ScoreBadge score={session.overallScore} />
+          ) : (
+            <StatusBadge status={session.status} />
+          )}
         </div>
       </div>
+      {session.status === "processing" && (
+        <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+          Results are being generated...
+        </p>
+      )}
+      {session.status === "failed" && (
+        <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+          Evaluation failed. Please try again.
+        </p>
+      )}
     </button>
   );
 }

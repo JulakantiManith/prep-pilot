@@ -63,21 +63,25 @@ async def get_session_history(
         client = get_supabase_client()
 
         # Build base query for counting
+        # Include completed, processing, and failed sessions
+        # Note: 'processing' requires the session_status enum to include it
+        # (run supabase_add_processing_status.sql if not already done)
+        valid_statuses = ["completed", "processing", "failed"]
         count_query = (
             client.table("sessions")
             .select("id", count="exact")
             .eq("user_id", current_user_id)
-            .eq("status", "completed")
+            .in_("status", valid_statuses)
         )
 
         # Build base query for data
         data_query = (
             client.table("sessions")
             .select(
-                "id, session_type, created_at, duration_seconds, overall_score"
+                "id, session_type, created_at, duration_seconds, overall_score, status"
             )
             .eq("user_id", current_user_id)
-            .eq("status", "completed")
+            .in_("status", valid_statuses)
         )
 
         # Apply optional filters
@@ -117,6 +121,7 @@ async def get_session_history(
                 created_at=s.get("created_at", ""),
                 duration_seconds=s.get("duration_seconds"),
                 overall_score=s.get("overall_score"),
+                status=s.get("status", "completed"),
             )
             for s in (data_response.data or [])
         ]

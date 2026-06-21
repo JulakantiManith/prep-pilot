@@ -13,6 +13,14 @@ import {
 import { cn } from "@/shared/lib/utils";
 import type { SessionDetail as SessionDetailType } from "../services/historyService";
 
+interface PresentationScoresData {
+  speaking_speed?: number;
+  clarity?: number;
+  structure?: number;
+  communication?: number;
+  engagement?: number;
+}
+
 interface SessionDetailProps {
   session: SessionDetailType;
 }
@@ -129,14 +137,54 @@ export function SessionDetail({ session }: SessionDetailProps) {
       </div>
 
       {/* Scores */}
-      {(session.overallScore !== null ||
-        session.confidenceScore !== null ||
-        session.communicationScore !== null) && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <ScoreCard label="Overall" score={session.overallScore} icon={Award} />
-          <ScoreCard label="Confidence" score={session.confidenceScore} icon={TrendingUp} />
-          <ScoreCard label="Communication" score={session.communicationScore} icon={MessageSquare} />
+      {session.sessionType === "presentation" && session.feedback?.presentationScores ? (
+        // Presentation-specific scores (5 categories)
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold">Category Scores</h3>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <ScoreCard
+              label="Speaking Speed"
+              score={(session.feedback.presentationScores as PresentationScoresData).speaking_speed ?? null}
+              icon={Clock}
+            />
+            <ScoreCard
+              label="Clarity"
+              score={(session.feedback.presentationScores as PresentationScoresData).clarity ?? null}
+              icon={MessageSquare}
+            />
+            <ScoreCard
+              label="Structure"
+              score={(session.feedback.presentationScores as PresentationScoresData).structure ?? null}
+              icon={Target}
+            />
+            <ScoreCard
+              label="Communication"
+              score={(session.feedback.presentationScores as PresentationScoresData).communication ?? null}
+              icon={TrendingUp}
+            />
+            <ScoreCard
+              label="Engagement"
+              score={(session.feedback.presentationScores as PresentationScoresData).engagement ?? null}
+              icon={Award}
+            />
+          </div>
+          {session.overallScore !== null && (
+            <p className="text-center text-sm text-muted-foreground">
+              Overall: <span className="font-semibold text-foreground">{session.overallScore}%</span>
+            </p>
+          )}
         </div>
+      ) : (
+        // Interview scores (3 metrics)
+        (session.overallScore !== null ||
+          session.confidenceScore !== null ||
+          session.communicationScore !== null) && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <ScoreCard label="Overall" score={session.overallScore} icon={Award} />
+            <ScoreCard label="Confidence" score={session.confidenceScore} icon={TrendingUp} />
+            <ScoreCard label="Communication" score={session.communicationScore} icon={MessageSquare} />
+          </div>
+        )
       )}
 
       {/* AI Feedback */}

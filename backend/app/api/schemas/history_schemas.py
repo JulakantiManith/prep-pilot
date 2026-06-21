@@ -18,6 +18,10 @@ class SessionListItem(BaseModel):
     overall_score: Optional[int] = Field(
         default=None, description="Overall performance score (0-100)"
     )
+    status: str = Field(
+        default="completed",
+        description="Session status: completed, processing, or failed",
+    )
 
 
 class SessionHistoryListResponse(BaseModel):

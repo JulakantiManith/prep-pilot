@@ -64,6 +64,20 @@ export interface CompletePresentationResponse {
   feedback: PresentationFeedbackResponse | null;
 }
 
+export interface SubmitPresentationResponse {
+  session_id: string;
+  status: string;
+  message: string;
+}
+
+export interface PresentationStatusResponse {
+  session_id: string;
+  status: string;
+  session: PresentationSession;
+  scores?: PresentationScoresResponse | null;
+  feedback?: PresentationFeedbackResponse | null;
+}
+
 // --- API Functions ---
 
 export async function createPresentationSession(
@@ -107,11 +121,28 @@ export async function uploadMaterials(
   return response.data;
 }
 
+/**
+ * Submit presentation for background analysis.
+ * Returns immediately with status "processing".
+ */
 export async function completePresentationSession(
   sessionId: string
-): Promise<CompletePresentationResponse> {
-  const response = await apiClient.post<CompletePresentationResponse>(
+): Promise<SubmitPresentationResponse> {
+  const response = await apiClient.post<SubmitPresentationResponse>(
     `/sessions/presentation/${sessionId}/complete`
+  );
+  return response.data;
+}
+
+/**
+ * Poll the processing status of a presentation session.
+ * Returns full results when status is "completed".
+ */
+export async function getPresentationStatus(
+  sessionId: string
+): Promise<PresentationStatusResponse> {
+  const response = await apiClient.get<PresentationStatusResponse>(
+    `/sessions/presentation/${sessionId}/status`
   );
   return response.data;
 }

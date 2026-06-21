@@ -6,6 +6,7 @@ and materials, and completing sessions with presentation-specific analysis.
 Requirements: 7.1, 7.2, 7.3, 7.4, 7.5
 """
 
+import asyncio
 import logging
 from uuid import UUID
 
@@ -224,66 +225,143 @@ async def upload_materials(
 
 @router.post(
     "/{session_id}/complete",
-    response_model=CompletePresentationResponse,
-    summary="Complete a presentation session and get analysis report",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Submit presentation for background analysis",
 )
 async def complete_presentation_session(
     session_id: UUID,
     current_user_id: CurrentUserDep,
 ):
-    """Complete a presentation session and generate the analysis report.
+    """Submit a presentation session for background analysis.
 
-    Analyzes the presentation recording for speaking speed, clarity,
-    structure, communication, and engagement. Returns scores and
-    improvement suggestions.
+    Immediately marks the session as 'processing' and kicks off
+    transcription, scoring, and feedback generation in the background.
+    Returns instantly so the user is not blocked.
+
+    Use GET /{session_id}/status to poll for completion.
 
     Requirements 7.3, 7.4, 7.5: Analyze and generate scores/feedback.
     """
     service = _get_presentation_service()
 
+    # Verify session exists and belongs to user before starting background task
     try:
-        result = await service.complete_session(
-            user_id=current_user_id,
-            session_id=session_id,
-        )
+        session = service._repository.get_session(session_id, current_user_id)
+        if not session:
+            raise PresentationNotFoundError(f"Session {session_id} not found")
+        if session.get("status") == "completed":
+            raise PresentationServiceError("Session is already completed")
     except PresentationNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Presentation session not found or access denied",
         )
     except PresentationServiceError as e:
-        logger.error("Failed to complete presentation session: %s", str(e))
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to complete presentation session. Please try again.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
         )
 
-    # Build response
-    session_data = result["session"]
-    scores = result.get("scores")
-    feedback = result.get("feedback")
-
-    scores_response = None
-    if scores:
-        scores_response = PresentationScoresResponse(
-            speaking_speed=scores.speaking_speed,
-            clarity=scores.clarity,
-            structure=scores.structure,
-            communication=scores.communication,
-            engagement=scores.engagement,
+    # Mark session as processing
+    try:
+        service._repository.update_session(
+            session_id, current_user_id, {"status": "processing"}
         )
+    except Exception as e:
+        logger.error("Failed to mark session as processing: %s", str(e))
 
-    feedback_response = None
-    if feedback:
-        feedback_response = PresentationFeedbackResponse(
-            strengths=feedback.strengths,
-            weaknesses=feedback.weaknesses,
-            recommendations=feedback.recommendations,
-            presentation_scores=scores_response,
-        )
-
-    return CompletePresentationResponse(
-        session=_session_to_response(session_data),
-        scores=scores_response,
-        feedback=feedback_response,
+    # Fire off background evaluation task
+    asyncio.create_task(
+        _run_evaluation_background(service, current_user_id, session_id)
     )
+
+    return {
+        "session_id": str(session_id),
+        "status": "processing",
+        "message": "Your presentation has been submitted successfully. Results are being generated.",
+    }
+
+
+async def _run_evaluation_background(
+    service: PresentationService, user_id: str, session_id: UUID
+) -> None:
+    """Run the full evaluation pipeline in the background.
+
+    If it fails, marks the session as 'failed' so the user knows.
+    """
+    try:
+        await service.complete_session(user_id=user_id, session_id=session_id)
+        logger.info("Background evaluation completed for session %s", session_id)
+    except Exception as e:
+        logger.error(
+            "Background evaluation failed for session %s: %s", session_id, str(e)
+        )
+        # Mark session as failed
+        try:
+            service._repository.update_session(
+                session_id, user_id, {"status": "failed"}
+            )
+        except Exception:
+            logger.error("Failed to mark session %s as failed", session_id)
+
+
+@router.get(
+    "/{session_id}/status",
+    summary="Get presentation session processing status",
+)
+async def get_presentation_status(
+    session_id: UUID,
+    current_user_id: CurrentUserDep,
+):
+    """Poll the status of a presentation session.
+
+    Returns the current status (processing, completed, failed) and
+    the full results if completed.
+    """
+    service = _get_presentation_service()
+    session = service._repository.get_session(session_id, current_user_id)
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Presentation session not found or access denied",
+        )
+
+    session_status = session.get("status", "in_progress")
+
+    # If completed, return full results
+    if session_status == "completed":
+        # Fetch feedback
+        feedback_data = service._repository.get_session_feedback(session_id)
+        scores_response = None
+        feedback_response = None
+
+        if feedback_data:
+            pres_scores = feedback_data.get("presentation_scores")
+            if pres_scores:
+                scores_response = PresentationScoresResponse(
+                    speaking_speed=pres_scores.get("speaking_speed", 0),
+                    clarity=pres_scores.get("clarity", 0),
+                    structure=pres_scores.get("structure", 0),
+                    communication=pres_scores.get("communication", 0),
+                    engagement=pres_scores.get("engagement", 0),
+                )
+            feedback_response = PresentationFeedbackResponse(
+                strengths=feedback_data.get("strengths", []),
+                weaknesses=feedback_data.get("weaknesses", []),
+                recommendations=feedback_data.get("recommendations", []),
+                presentation_scores=scores_response,
+            )
+
+        return CompletePresentationResponse(
+            session=_session_to_response(session),
+            scores=scores_response,
+            feedback=feedback_response,
+        )
+
+    # Not yet completed
+    return {
+        "session_id": str(session_id),
+        "status": session_status,
+        "session": _session_to_response(session),
+    }

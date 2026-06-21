@@ -7,6 +7,7 @@ interface SessionListItemApi {
   created_at: string;
   duration_seconds: number | null;
   overall_score: number | null;
+  status: string;
 }
 
 interface SessionHistoryListApiResponse {
@@ -66,6 +67,7 @@ export interface SessionListItem {
   createdAt: string;
   durationSeconds: number | null;
   overallScore: number | null;
+  status: string;
 }
 
 export interface SessionHistoryList {
@@ -132,6 +134,7 @@ function mapSessionListItem(item: SessionListItemApi): SessionListItem {
     createdAt: item.created_at,
     durationSeconds: item.duration_seconds,
     overallScore: item.overall_score,
+    status: item.status || "completed",
   };
 }
 

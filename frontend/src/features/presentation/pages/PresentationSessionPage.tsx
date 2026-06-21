@@ -6,16 +6,15 @@ import {
   FileText,
   CheckCircle2,
   Video,
+  PartyPopper,
 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { PresentationRecorder } from "../components/PresentationRecorder";
-import { PresentationReport } from "../components/PresentationReport";
 import {
   uploadRecording,
   uploadMaterials,
   completePresentationSession,
 } from "../services/presentationService";
-import type { CompletePresentationResponse } from "../services/presentationService";
 
 const ACCEPTED_MATERIAL_TYPES = [
   "application/pdf",
@@ -24,7 +23,7 @@ const ACCEPTED_MATERIAL_TYPES = [
 ];
 const ACCEPTED_EXTENSIONS = ".pdf,.ppt,.pptx";
 
-type SessionPhase = "prepare" | "recording" | "processing" | "report";
+type SessionPhase = "prepare" | "recording" | "submitting" | "submitted";
 
 export function PresentationSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -41,8 +40,6 @@ export function PresentationSessionPage() {
   const [materialsFile, setMaterialsFile] = useState<File | null>(null);
   const [materialsError, setMaterialsError] = useState<string | null>(null);
   const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [report, setReport] = useState<CompletePresentationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const autoFinishRef = useRef(false);
@@ -84,9 +81,8 @@ export function PresentationSessionPage() {
   };
 
   const handleRecordingComplete = useCallback(
-    (blob: Blob, duration: number) => {
+    (blob: Blob, _duration: number) => {
       setRecordingBlob(blob);
-      setRecordingDuration(duration);
     },
     []
   );
@@ -108,16 +104,20 @@ export function PresentationSessionPage() {
     if (!sessionId || !recordingBlob) return;
 
     setIsCompleting(true);
+    setPhase("submitting");
     setError(null);
 
     try {
+      // Upload recording
       await uploadRecording(sessionId, recordingBlob);
-      setPhase("processing");
-      const result = await completePresentationSession(sessionId);
-      setReport(result);
-      setPhase("report");
+
+      // Submit for background processing (returns immediately)
+      await completePresentationSession(sessionId);
+
+      // Show success
+      setPhase("submitted");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to complete session";
+      const message = err instanceof Error ? err.message : "Failed to submit presentation";
       setError(message);
       setPhase("recording");
     } finally {
@@ -229,33 +229,49 @@ export function PresentationSessionPage() {
     );
   }
 
-  // Phase: Processing
-  if (phase === "processing") {
+  // Phase: Submitting
+  if (phase === "submitting") {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
           <div>
-            <p className="text-lg font-medium">Analyzing your presentation...</p>
-            <p className="text-sm text-muted-foreground">
-              This may take a moment while we evaluate your speaking speed, clarity,
-              structure, communication, and engagement.
-            </p>
+            <p className="text-lg font-medium">Submitting your presentation...</p>
+            <p className="text-sm text-muted-foreground">Uploading recording and starting analysis.</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Phase: Report
-  if (phase === "report" && report) {
+  // Phase: Submitted — success screen
+  if (phase === "submitted") {
     return (
-      <div className="py-6 space-y-6">
-        <PresentationReport report={report} />
-        <div className="mx-auto max-w-3xl flex justify-center">
-          <Button onClick={() => navigate("/presentation")}>
-            Start New Session
-          </Button>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="mx-auto max-w-md text-center space-y-6">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
+            <PartyPopper className="h-8 w-8 text-green-600 dark:text-green-400" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Presentation Submitted!</h2>
+            <p className="text-muted-foreground">
+              Your results are currently being generated. This usually takes 1-2 minutes.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You can start another session or check the History page later to view the completed results.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Button onClick={() => navigate("/presentation")}>
+              New Presentation
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/history")}>
+              Go to History
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+              Dashboard
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -286,17 +302,13 @@ export function PresentationSessionPage() {
       {/* Finish Session Button */}
       {recordingBlob && (
         <div className="mx-auto max-w-3xl flex flex-col items-center gap-2">
-          <p className="text-sm text-muted-foreground">
-            Recording duration: {Math.floor(recordingDuration / 60)}m{" "}
-            {recordingDuration % 60}s
-          </p>
           <Button
             onClick={handleFinishSession}
             disabled={isCompleting}
             size="lg"
           >
             {isCompleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Finish & Get Analysis
+            Submit Presentation
           </Button>
         </div>
       )}
