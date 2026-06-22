@@ -38,6 +38,90 @@ async def lifespan(app: FastAPI):
         len(settings.jwt_secret),
         settings.jwt_secret[:4] if settings.jwt_secret else "EMPTY",
     )
+
+    # Validate URL formats (fail startup on invalid)
+    try:
+        resolved_frontend = settings.get_resolved_frontend_url()
+    except ValueError as e:
+        logger.error("Invalid FRONTEND_URL configuration: %s", e)
+        raise SystemExit(1)
+
+    try:
+        resolved_backend = settings.get_resolved_backend_url()
+    except ValueError as e:
+        logger.error("Invalid BACKEND_URL configuration: %s", e)
+        raise SystemExit(1)
+
+    # Log warnings for missing optional vars
+    default_frontend = "http://localhost:5173"
+    default_backend = "http://localhost:8000"
+
+    frontend_is_default = (
+        not settings.frontend_url.strip()
+        or settings.frontend_url.strip() == default_frontend
+    )
+    backend_is_default = (
+        not settings.backend_url.strip()
+        or settings.backend_url.strip() == default_backend
+    )
+    app_domain_missing = not settings.app_domain.strip()
+
+    if frontend_is_default and settings.frontend_url.strip() != default_frontend:
+        logger.warning(
+            "FRONTEND_URL not set, using fallback: %s", default_frontend
+        )
+    elif not settings.frontend_url.strip():
+        logger.warning(
+            "FRONTEND_URL not set, using fallback: %s", default_frontend
+        )
+
+    if backend_is_default and settings.backend_url.strip() != default_backend:
+        logger.warning(
+            "BACKEND_URL not set, using fallback: %s", default_backend
+        )
+    elif not settings.backend_url.strip():
+        logger.warning(
+            "BACKEND_URL not set, using fallback: %s", default_backend
+        )
+
+    if app_domain_missing:
+        logger.warning(
+            "APP_DOMAIN not set, no custom domain configured"
+        )
+
+    # Log warning if APP_DOMAIN is set but FRONTEND_URL is not
+    if not app_domain_missing and frontend_is_default:
+        logger.warning(
+            "APP_DOMAIN is configured but FRONTEND_URL is missing"
+        )
+
+    # Check if running in default-URL mode (no domain vars configured)
+    if app_domain_missing and frontend_is_default and backend_is_default:
+        logger.info("Running in default-URL mode")
+
+    # Log SMTP status
+    if settings.get_smtp_enabled():
+        logger.info(
+            "Email sending is active — host=%s, sender=%s",
+            settings.smtp_host,
+            settings.smtp_sender_email,
+        )
+    else:
+        missing_vars = []
+        if not settings.smtp_host:
+            missing_vars.append("SMTP_HOST")
+        if not settings.smtp_port or settings.smtp_port <= 0:
+            missing_vars.append("SMTP_PORT")
+        if not settings.smtp_sender_email:
+            missing_vars.append("SMTP_SENDER_EMAIL")
+        logger.warning(
+            "Email features disabled — missing: %s", ", ".join(missing_vars)
+        )
+
+    # Log domain mode summary
+    domain_mode = settings.get_domain_mode()
+    logger.info("Domain mode: %s", domain_mode)
+
     yield
     # Shutdown
 
@@ -82,7 +166,7 @@ def create_app() -> FastAPI:
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.allowed_origins,
+        allow_origins=settings.get_parsed_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -101,6 +185,10 @@ def create_app() -> FastAPI:
         return {
             "status": "healthy",
             "version": settings.app_version,
+            "app_domain": settings.app_domain or "",
+            "frontend_url": settings.get_resolved_frontend_url(),
+            "backend_url": settings.get_resolved_backend_url(),
+            "domain_mode": settings.get_domain_mode(),
         }
 
     # Include feature routers
