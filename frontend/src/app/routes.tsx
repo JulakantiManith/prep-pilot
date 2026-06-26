@@ -17,6 +17,7 @@ import { SessionDetailPage } from "@/features/history/pages/SessionDetailPage";
 import { LandingPage } from "@/features/landing/pages/LandingPage";
 import { PresentationSetupPage } from "@/features/presentation/pages/PresentationSetupPage";
 import { PresentationSessionPage } from "@/features/presentation/pages/PresentationSessionPage";
+import { AuthCallbackPage } from "@/features/auth/pages/AuthCallbackPage";
 
 function NotFoundPage() {
   return <div className="flex min-h-screen items-center justify-center"><div className="space-y-4 text-center"><h1 className="text-4xl font-bold">404</h1><p className="text-muted-foreground">Page not found.</p></div></div>;
@@ -35,6 +36,9 @@ export function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
+
+      {/* Auth callback - handles email verification and magic link redirects */}
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
       {/* Authenticated routes with layout */}
       <Route element={<ProtectedRoute />}>

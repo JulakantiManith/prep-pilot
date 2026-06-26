@@ -70,12 +70,12 @@ export function buildAuthRedirectUrl(path: string): string {
  * Get the email verification redirect URL.
  */
 export function getEmailVerificationUrl(): string {
-  return buildAuthRedirectUrl("/auth/verify-email");
+  return buildAuthRedirectUrl("/auth/callback");
 }
 
 /**
  * Get the password reset redirect URL.
  */
 export function getPasswordResetUrl(): string {
-  return buildAuthRedirectUrl("/auth/reset-password");
+  return buildAuthRedirectUrl("/reset-password");
 }
