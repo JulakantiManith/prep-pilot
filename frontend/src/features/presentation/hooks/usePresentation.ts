@@ -9,6 +9,7 @@ import type {
   CreatePresentationSessionRequest,
   PresentationSession,
   CompletePresentationResponse,
+  SubmitPresentationResponse,
 } from "../services/presentationService";
 
 export type PresentationPhase = "setup" | "recording" | "processing" | "report";
@@ -16,7 +17,7 @@ export type PresentationPhase = "setup" | "recording" | "processing" | "report";
 interface PresentationState {
   phase: PresentationPhase;
   session: PresentationSession | null;
-  report: CompletePresentationResponse | null;
+  report: CompletePresentationResponse | SubmitPresentationResponse | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -93,7 +94,6 @@ export function usePresentation() {
       setState((prev) => ({
         ...prev,
         report: result,
-        session: result.session,
         phase: "report",
         isLoading: false,
       }));

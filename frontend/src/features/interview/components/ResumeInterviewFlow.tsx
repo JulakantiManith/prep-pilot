@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, FileWarning, CheckCircle2, ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
-import { cn } from "@/shared/lib/utils";
 import { ResumeDataForm } from "./ResumeDataForm";
 import {
   parseResume,
@@ -46,7 +45,7 @@ export function ResumeInterviewFlow({ resumeId, resumeFileName }: ResumeIntervie
         setIsAlreadyConfirmed(response.user_confirmed);
         // Pre-fill role from resume experience if user hasn't set one
         if (!role && response.extracted_data.experience?.length > 0) {
-          setRole(response.extracted_data.experience[0].title || "");
+          setRole(response.extracted_data.experience[0]?.title || "");
         }
         setStep("editing");
       } else if (response.extraction_status === "failed") {
@@ -72,7 +71,7 @@ export function ResumeInterviewFlow({ resumeId, resumeFileName }: ResumeIntervie
         setExtractedData(result.extracted_data);
         setConfidence(result.extraction_confidence);
         if (!role && result.extracted_data.experience?.length > 0) {
-          setRole(result.extracted_data.experience[0].title || "");
+          setRole(result.extracted_data.experience[0]?.title || "");
         }
         setStep("editing");
       } else {

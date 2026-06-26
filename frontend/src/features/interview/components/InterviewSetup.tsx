@@ -212,7 +212,11 @@ export function InterviewSetup({
                     icon: "text-purple-600 dark:text-purple-400",
                   },
                 };
-                const colors = colorClasses[type.color];
+                const colors = colorClasses[type.color] ?? {
+                  bg: "from-blue-500/10 to-blue-600/5 dark:from-blue-500/20 dark:to-blue-600/10",
+                  border: "border-blue-500 dark:border-blue-400",
+                  icon: "text-blue-600 dark:text-blue-400",
+                };
                 return (
                   <button
                     key={type.value}

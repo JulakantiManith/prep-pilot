@@ -17,14 +17,16 @@ interface MetricCardProps {
 
 function computeLatestScore(scores: ScoreTrend[]): number | null {
   if (scores.length === 0) return null;
-  return scores[scores.length - 1].averageScore;
+  const last = scores[scores.length - 1];
+  return last ? last.averageScore : null;
 }
 
 function computeTrend(scores: ScoreTrend[]): "up" | "down" | "neutral" {
   if (scores.length < 2) return "neutral";
-  const latest = scores[scores.length - 1].averageScore;
-  const previous = scores[scores.length - 2].averageScore;
-  const diff = latest - previous;
+  const latest = scores[scores.length - 1];
+  const previous = scores[scores.length - 2];
+  if (!latest || !previous) return "neutral";
+  const diff = latest.averageScore - previous.averageScore;
   if (diff > 2) return "up";
   if (diff < -2) return "down";
   return "neutral";

@@ -17,7 +17,7 @@ interface MetricCardProps {
 function getScoreColorClass(value: string | number): string {
   if (typeof value === "number") return "";
   const numericMatch = value.match(/^(\d+)%$/);
-  if (!numericMatch) return "";
+  if (!numericMatch || !numericMatch[1]) return "";
   const score = parseInt(numericMatch[1], 10);
   if (score >= 75) return "text-green-600 dark:text-green-400";
   if (score >= 50) return "text-yellow-600 dark:text-yellow-400";

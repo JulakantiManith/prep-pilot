@@ -165,7 +165,7 @@ export function WeeklyChart({ data, timeRange, onTimeRangeChange }: WeeklyChartP
                   boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                 }}
                 labelStyle={{ fontWeight: 600, color: colors.cardFg, marginBottom: "4px" }}
-                formatter={(value: number) => [`${Math.round(value)}%`, "Avg Score"]}
+                formatter={(value) => [`${Math.round(Number(value))}%`, "Avg Score"]}
               />
               <Area
                 type="monotone"

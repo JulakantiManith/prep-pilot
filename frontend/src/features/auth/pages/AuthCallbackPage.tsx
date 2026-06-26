@@ -35,7 +35,7 @@ export function AuthCallbackPage() {
         } else {
           // No session yet — might still be exchanging token, listen for changes
           const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (event, session) => {
+            (_event, session) => {
               if (session) {
                 subscription.unsubscribe();
                 navigate("/dashboard", { replace: true });

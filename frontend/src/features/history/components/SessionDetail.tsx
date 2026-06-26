@@ -358,7 +358,7 @@ export function SessionDetail({ session }: SessionDetailProps) {
                 {/* Answer metrics */}
                 {(answer.communicationScore !== null ||
                   answer.confidenceScore !== null ||
-                  answer.wpm !== null) && (
+                  answer.wpm !== null) ? (
                   <div className="mt-3 flex flex-wrap gap-3 border-t pt-3">
                     {answer.communicationScore !== null && (
                       <span className="text-xs text-muted-foreground">
@@ -381,17 +381,17 @@ export function SessionDetail({ session }: SessionDetailProps) {
                       </span>
                     )}
                   </div>
-                )}
+                ) : null}
 
                 {/* AI Evaluation for this answer */}
-                {answer.aiEvaluation && typeof answer.aiEvaluation === "object" && (
+                {answer.aiEvaluation != null && typeof answer.aiEvaluation === "object" ? (
                   <div className="mt-3 border-t pt-3">
                     <p className="text-xs font-medium text-muted-foreground">AI Evaluation</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {(answer.aiEvaluation as { feedback?: string }).feedback || "—"}
                     </p>
                   </div>
-                )}
+                ) : null}
               </div>
             ))}
           </div>

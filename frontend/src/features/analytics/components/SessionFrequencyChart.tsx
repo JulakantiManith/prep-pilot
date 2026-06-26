@@ -61,8 +61,8 @@ function formatPeriodLabel(period: string): string {
   // Handle week format "YYYY-Wnn" — show the Monday date of that ISO week
   if (period.includes("-W")) {
     const [yearStr, weekStr] = period.split("-W");
-    const year = parseInt(yearStr, 10);
-    const week = parseInt(weekStr, 10);
+    const year = parseInt(yearStr ?? "0", 10);
+    const week = parseInt(weekStr ?? "0", 10);
     // Jan 4 is always in ISO week 1
     const jan4 = new Date(year, 0, 4);
     const dayOfWeek = jan4.getDay() || 7; // Mon=1..Sun=7
@@ -133,9 +133,9 @@ export function SessionFrequencyChart({ dataPoints }: SessionFrequencyChartProps
                   boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                 }}
                 labelStyle={{ fontWeight: 600, color: colors.cardFg, marginBottom: "4px" }}
-                formatter={(value: number, name: string) => {
-                  if (name === "sessionCount") return [`${value}`, "Sessions"];
-                  return [`${value}`, name];
+                formatter={(value, name) => {
+                  if (String(name) === "sessionCount") return [`${value}`, "Sessions"];
+                  return [`${value}`, String(name)];
                 }}
                 cursor={{ fill: colors.bar, opacity: 0.1 }}
               />

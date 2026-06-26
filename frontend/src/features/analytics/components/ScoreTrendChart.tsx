@@ -70,8 +70,8 @@ function formatDateLabel(dateStr: string): string {
   // Handle week format "YYYY-Wnn" — compute the Monday of that ISO week
   if (dateStr.includes("-W")) {
     const [yearStr, weekStr] = dateStr.split("-W");
-    const year = parseInt(yearStr, 10);
-    const week = parseInt(weekStr, 10);
+    const year = parseInt(yearStr ?? "0", 10);
+    const week = parseInt(weekStr ?? "0", 10);
     // Jan 4 is always in ISO week 1
     const jan4 = new Date(year, 0, 4);
     const dayOfWeek = jan4.getDay() || 7; // Mon=1..Sun=7
@@ -167,13 +167,13 @@ export function ScoreTrendChart({
                   boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                 }}
                 labelStyle={{ fontWeight: 600, color: colors.cardFg, marginBottom: "4px" }}
-                formatter={(value: number, name: string) => {
+                formatter={(value, name) => {
                   const labels: Record<string, string> = {
                     overall: "Overall",
                     confidence: "Confidence",
                     communication: "Communication",
                   };
-                  return [`${Math.round(value)}%`, labels[name] || name];
+                  return [`${Math.round(Number(value))}%`, labels[String(name)] || String(name)];
                 }}
               />
               <Legend
