@@ -484,7 +484,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Add environment variable `EMAIL_DELIVERABILITY_CHECK_ENABLED` (default: false) for optional startup SMTP validation
     - _Requirements: 17.2, 17.3_
 
-  - [ ] 19.7 Update environment variables and deployment configuration
+  - [x] 19.7 Update environment variables and deployment configuration
     - Update `backend/.env.example` with all new variables: `APP_DOMAIN`, `FRONTEND_URL`, `BACKEND_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SENDER_EMAIL`, `SMTP_SENDER_NAME`, `EMAIL_DELIVERABILITY_CHECK_ENABLED`, `EMAIL_NOTIFICATIONS_ENABLED`
     - Update `frontend/.env.example` with: `VITE_APP_DOMAIN`, `VITE_AUTH_REDIRECT_URL`
     - Update `backend/app/config.py` to validate all new environment variables with sensible defaults for development
@@ -492,7 +492,7 @@ This implementation plan follows a phased approach: Phase 1 (MVP) establishes th
     - Create `docs/custom-domain-checklist.md` with pre-deployment verification items: DNS propagation check, SSL certificate validation, auth flow testing, email delivery testing, CORS verification
     - _Requirements: 18.1, 18.7_
 
-  - [ ] 19.8 Validate and test custom domain and email integration
+  - [x] 19.8 Validate and test custom domain and email integration
     - Write integration test for `email_client.py`: verify SMTP connection, send test email, handle connection failure gracefully
     - Write unit test for `email_notification_service.py`: verify template rendering with session data, verify non-blocking behavior
     - Write unit test for auth redirect URL construction: verify URLs use production domain from environment

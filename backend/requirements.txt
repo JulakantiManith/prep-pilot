@@ -17,3 +17,5 @@ mediapipe==0.10.35
 numpy==2.4.6
 opencv-python-headless==4.13.0.92
 aiosmtplib==3.0.2
+pytest==8.3.3
+pytest-asyncio==0.24.0

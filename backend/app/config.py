@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # Email deliverability check (optional startup validation)
     email_deliverability_check_enabled: bool = False
 
+    # Email notifications (session completion emails)
+    email_notifications_enabled: bool = True
+
     def get_resolved_frontend_url(self) -> str:
         """Resolve the frontend URL, stripping trailing slashes.
 
