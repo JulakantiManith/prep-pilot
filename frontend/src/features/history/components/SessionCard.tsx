@@ -86,9 +86,9 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
       onClick={() => isClickable && onClick(session.id)}
       disabled={!isClickable}
       className={cn(
-        "w-full rounded-lg border bg-card p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "w-full rounded-lg border border-border/50 bg-card px-4 py-3 text-left shadow-sm transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isClickable
-          ? "hover:bg-accent/50 cursor-pointer"
+          ? "hover:bg-accent/5 cursor-pointer"
           : "opacity-80 cursor-default"
       )}
       aria-label={

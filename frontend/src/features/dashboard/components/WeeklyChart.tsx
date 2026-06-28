@@ -107,7 +107,7 @@ export function WeeklyChart({ data, timeRange, onTimeRangeChange }: WeeklyChartP
   }));
 
   return (
-    <div className="rounded-lg border bg-card p-6 shadow-sm">
+    <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-semibold">{getChartTitle(timeRange)}</h3>
         <select
@@ -144,7 +144,7 @@ export function WeeklyChart({ data, timeRange, onTimeRangeChange }: WeeklyChartP
                   <stop offset="95%" stopColor={colors.line} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} strokeOpacity={0.2} />
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 11, fill: colors.tick }}

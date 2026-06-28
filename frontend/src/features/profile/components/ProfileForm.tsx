@@ -128,7 +128,7 @@ export function ProfileForm() {
           type="text"
           placeholder="e.g. Senior Frontend Engineer"
           className={cn(
-            "flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "input-focus-glow flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200",
             errors.targetRole ? "border-destructive" : "border-input"
           )}
           aria-invalid={errors.targetRole ? "true" : undefined}
@@ -149,7 +149,7 @@ export function ProfileForm() {
         <select
           id="experienceLevel"
           className={cn(
-            "flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "input-focus-glow flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200",
             errors.experienceLevel ? "border-destructive" : "border-input"
           )}
           aria-invalid={errors.experienceLevel ? "true" : undefined}
@@ -179,7 +179,7 @@ export function ProfileForm() {
           type="text"
           placeholder="e.g. React, TypeScript, Node.js"
           className={cn(
-            "flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "input-focus-glow flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200",
             errors.skills ? "border-destructive" : "border-input"
           )}
           aria-invalid={errors.skills ? "true" : undefined}

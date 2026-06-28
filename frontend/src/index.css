@@ -37,7 +37,7 @@
   .dark {
     --color-background: hsl(222.2 84% 4.9%);
     --color-foreground: hsl(210 40% 98%);
-    --color-card: hsl(222.2 84% 4.9%);
+    --color-card: hsl(222.2 84% 6.5%);
     --color-card-foreground: hsl(210 40% 98%);
     --color-popover: hsl(222.2 84% 4.9%);
     --color-popover-foreground: hsl(210 40% 98%);
@@ -69,6 +69,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  button, a, input, select, textarea, [role="button"] {
+    @apply transition-all duration-200 ease-out;
+  }
 }
 
 /* Dark mode shadow polish - subtle glow instead of harsh shadows */
@@ -78,6 +81,26 @@
   }
   .dark .shadow-md {
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  }
+}
+
+/* App background glow - subtle radial gradient for premium feel */
+@layer utilities {
+  .app-bg-glow {
+    background: radial-gradient(ellipse 80% 50% at 50% 20%, hsl(220 70% 50% / 0.06), transparent);
+  }
+  .dark .app-bg-glow {
+    background: radial-gradient(ellipse 80% 50% at 50% 20%, hsl(220 70% 50% / 0.08), transparent);
+  }
+}
+
+/* Input focus glow - consistent form input focus states */
+@layer utilities {
+  .input-focus-glow {
+    @apply transition-all duration-200 rounded-lg border border-border;
+  }
+  .input-focus-glow:focus {
+    @apply border-blue-500 ring-[3px] ring-blue-500/30;
   }
 }
 

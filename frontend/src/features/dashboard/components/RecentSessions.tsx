@@ -61,9 +61,9 @@ function ScoreBadge({ score }: { score: number | null }) {
 export function RecentSessions({ sessions }: RecentSessionsProps) {
   if (sessions.length === 0) {
     return (
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
+      <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm transition-all duration-200 ease-out hover:shadow-md hover:-translate-y-0.5 hover:border-border">
         <h3 className="text-lg font-semibold">Recent Sessions</h3>
-        <div className="mt-4 flex flex-col items-center justify-center rounded-md border border-dashed bg-card/50 py-8 text-center">
+        <div className="mt-4 flex flex-col items-center justify-center rounded-md border border-dashed border-border/50 bg-card/50 py-8 text-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
             <Briefcase className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -76,13 +76,13 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-6 shadow-sm">
+    <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm transition-all duration-200 ease-out hover:shadow-md hover:-translate-y-0.5 hover:border-border">
       <h3 className="text-lg font-semibold">Recent Sessions</h3>
       <ul className="mt-4 space-y-3" role="list">
         {sessions.map((session, index) => (
           <li
             key={`${session.createdAt}-${index}`}
-            className="flex items-center justify-between rounded-md border px-4 py-3 transition-all duration-200 hover:bg-muted/50 hover:shadow-sm"
+            className="flex items-center justify-between rounded-md border border-border/50 px-4 py-3 transition-all duration-200 hover:bg-accent/5 hover:shadow-sm"
           >
             <div className="flex items-center gap-3">
               <SessionIcon type={session.sessionType} />

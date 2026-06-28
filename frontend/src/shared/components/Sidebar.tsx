@@ -40,7 +40,7 @@ export function Sidebar({ isOpen, onClose, className }: SidebarProps) {
         {/* Mobile close button */}
         <div className="flex h-16 items-center justify-between border-b px-4 md:hidden">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
+            <img src="/logo.png" alt="" className="h-10 w-10 object-contain" />
             <span className="font-bold">
               <span className="text-foreground">Preply </span>
               <span className="text-blue-600 dark:text-blue-500">AI</span>
@@ -56,7 +56,7 @@ export function Sidebar({ isOpen, onClose, className }: SidebarProps) {
         </div>
 
         {/* Navigation links */}
-        <nav className="flex-1 space-y-1 p-4" aria-label="Main navigation">
+        <nav className="flex-1 space-y-2 p-4" aria-label="Main navigation">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -64,9 +64,9 @@ export function Sidebar({ isOpen, onClose, className }: SidebarProps) {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                   isActive
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500 shadow-[inset_4px_0_8px_-4px] shadow-blue-500/20"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )
               }

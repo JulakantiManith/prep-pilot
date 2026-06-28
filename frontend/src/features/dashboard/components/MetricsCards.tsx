@@ -28,15 +28,15 @@ function MetricCard({ title, value, icon, subtitle, iconBgClass, iconColorClass 
   const scoreColor = getScoreColorClass(value);
 
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+    <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm transition-all duration-200 ease-out hover:shadow-md hover:-translate-y-0.5 hover:border-border">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBgClass}`}>
+        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBgClass} shadow-[0_0_8px_0] shadow-current/20`}>
           <div className={iconColorClass}>{icon}</div>
         </div>
       </div>
       <div className="mt-2">
-        <p className={`text-2xl font-bold ${scoreColor}`}>{value}</p>
+        <p className={`text-3xl font-extrabold ${scoreColor}`}>{value}</p>
         {subtitle && (
           <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
         )}
